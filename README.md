@@ -76,6 +76,18 @@ curl -X POST "https://你的網域/api/refill?key=REFILL_KEY"
 |---|---|---|
 | `/api/question` | POST | 傳入 `{prev: [先前題目的 token]}`，回傳 `{index, total, question, options: [{id, text}], token}`；優先取自題目池 |
 | `/api/refill` | POST | `?key=REFILL_KEY`，補充題目池（單次最多 2 題），回傳 `{pool, added, target}` |
+| `/api/track` | POST | 前端匿名事件回報（白名單制，目前僅 `copy_result`） |
+| `/api/stats` | GET | `?key=STATS_KEY`（未設定沿用 REFILL_KEY），回傳今日/昨日/累計的聚合計數 |
+
+## 統計
+
+只存**聚合計數**：不記 IP、不設 cookie、不建立任何「某人測出某陣營」的關聯（作答內容本來就無狀態）。按日 hash 保存 90 天、另有累計值。收集的欄位：
+
+- 漏斗：`quiz_start`、`answered:N`、`quiz_complete`、`copy_result`
+- 結果分布：`alignment:XX`、`confidence:高|中|低`、`secondary_shown`、`extend_offered`、`extend_completed`
+- 營運：`pool_hit`/`pool_miss`、`gen_invalid`/`gen_fail`、`narrative_ok`/`narrative_fail`、`token_invalid`、`question_error`、延遲分桶 `lat_question:*`、`lat_narrative:*`
+
+頁面流量建議另開 Vercel Analytics（專案設定一鍵啟用）。
 | `/api/progress` | POST | 傳入 `{answers: [{token, choice}]}`（已答部分），回傳 `{answered, total, confidence, level}` |
 | `/api/result` | POST | 純統計結算（即時），回傳 `{alignment, lawScore, goodScore, confidence, level, secondary, extend}` |
 | `/api/narrative` | POST | 個人化敘事（LLM，~20-40 秒），回傳 `{analysis, roleplayTips}`；前端於結果顯示後非同步請求 |

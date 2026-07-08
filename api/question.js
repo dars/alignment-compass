@@ -1,10 +1,12 @@
 import { generateQuestion, QUESTION_COUNT, MAX_QUESTIONS } from "../lib/quiz.js";
 import { kvEnabled, drawFromPool, refillPool } from "../lib/pool.js";
 import { defer } from "../lib/defer.js";
+import { track, latencyBucket } from "../lib/stats.js";
 import { seal, unseal } from "../lib/token.js";
 import { readJson, sendJson, handleError, HttpError } from "../lib/http.js";
 
 export default async function handler(req, res) {
+  const startedAt = Date.now();
   try {
     if (req.method !== "POST") throw new HttpError(405, "Method not allowed");
     const body = await readJson(req);
@@ -40,6 +42,7 @@ export default async function handler(req, res) {
         console.error("題目池讀取失敗，改為現場生成：", err.message);
       }
     }
+    const fromPool = Boolean(q);
     if (!q) q = await generateQuestion({ index, prev });
 
     const token = seal({ i: index, t: q.theme, q: q.question, o: q.options });
@@ -53,9 +56,16 @@ export default async function handler(req, res) {
       qid: q.id ?? null, // 池題才有；前端記錄避免重複遇題
     });
 
+    track(
+      index === 0 ? "quiz_start" : "",
+      fromPool ? "pool_hit" : "pool_miss",
+      latencyBucket("lat_question", Date.now() - startedAt)
+    );
+
     // 回應送出後在背景補池（Vercel 靠 waitUntil 延續執行）
     if (kvEnabled) defer(refillPool(1));
   } catch (err) {
+    track("question_error");
     handleError(res, err);
   }
 }

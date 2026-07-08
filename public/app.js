@@ -404,6 +404,13 @@ async function copyResult() {
     await navigator.clipboard.writeText(text);
     $("btn-copy").textContent = "已複製 ✓";
     setTimeout(() => ($("btn-copy").textContent = "複製結果"), 2000);
+    // 匿名事件計數（fire-and-forget，失敗無妨）
+    fetch("/api/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: "copy_result" }),
+      keepalive: true,
+    }).catch(() => {});
   } catch {
     $("btn-copy").textContent = "複製失敗";
   }

@@ -7,6 +7,7 @@ import {
   MAX_QUESTIONS,
 } from "../lib/quiz.js";
 import { resolveAnswers } from "../lib/answers.js";
+import { track } from "../lib/stats.js";
 import { readJson, sendJson, handleError, HttpError } from "../lib/http.js";
 
 // 純統計結算（<0.1 秒）：陣營、兩軸分數、信心、次要陣營、加測資訊。
@@ -36,6 +37,15 @@ export default async function handler(req, res) {
       secondary,
       extend,
     });
+
+    track(
+      "quiz_complete",
+      `alignment:${alignment}`,
+      `confidence:${level}`,
+      secondary ? "secondary_shown" : "",
+      extend ? "extend_offered" : "",
+      picks.length > QUESTION_COUNT ? "extend_completed" : ""
+    );
   } catch (err) {
     handleError(res, err);
   }

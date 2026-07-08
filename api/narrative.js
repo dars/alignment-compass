@@ -5,11 +5,13 @@ import {
   MAX_QUESTIONS,
 } from "../lib/quiz.js";
 import { resolveAnswers } from "../lib/answers.js";
+import { track, latencyBucket } from "../lib/stats.js";
 import { readJson, sendJson, handleError, HttpError } from "../lib/http.js";
 
 // 個人化敘事（DM 的觀察＋扮演建議）：LLM 生成、較慢（~20-40 秒），
 // 由前端在結果顯示後非同步請求；失敗只影響敘事區塊，不影響判定
 export default async function handler(req, res) {
+  const startedAt = Date.now();
   try {
     if (req.method !== "POST") throw new HttpError(405, "Method not allowed");
     const body = await readJson(req);
@@ -32,7 +34,9 @@ export default async function handler(req, res) {
     });
 
     sendJson(res, 200, narrative);
+    track("narrative_ok", latencyBucket("lat_narrative", Date.now() - startedAt));
   } catch (err) {
+    track("narrative_fail");
     handleError(res, err);
   }
 }
