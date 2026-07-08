@@ -127,6 +127,7 @@ async function startQuiz() {
   state.extendBase = 0;
   state.extended = false;
   $("confidence-line").hidden = true;
+  setNarrativeStatus("idle"); // 停掉可能還在跳動的等待計時器
   try {
     await ensureQuestion(0);
     state.answers = new Array(state.total).fill(null);
@@ -208,6 +209,7 @@ async function resumeAt(i, loadingText) {
 // 信心偏低時的自願加測
 function extendQuiz() {
   const count = state.result?.extend?.count || 4;
+  setNarrativeStatus("idle"); // 回到答題畫面，停掉敘事等待計時器
   state.extended = true;
   state.extendBase = state.total;
   state.total += count;
@@ -240,13 +242,27 @@ async function submitAnswers() {
 
 // ─── 敘事（非同步）──────────────────────────────────────
 
+let narrativeTimer = null;
+
 function setNarrativeStatus(mode) {
   const status = $("narrative-status");
   const retry = $("btn-narrative-retry");
+  if (narrativeTimer) {
+    clearInterval(narrativeTimer);
+    narrativeTimer = null;
+  }
   if (mode === "writing") {
     status.hidden = false;
-    status.textContent = "🖋 DM 正在撰寫你的觀察報告……";
     retry.hidden = true;
+    const startedAt = Date.now();
+    const render = () => {
+      const secs = Math.floor((Date.now() - startedAt) / 1000);
+      status.innerHTML =
+        '<span class="spinner" aria-hidden="true"></span>' +
+        `DM 正在撰寫你的觀察報告……已等待 ${secs} 秒（通常需要 20～40 秒）`;
+    };
+    render();
+    narrativeTimer = setInterval(render, 1000);
   } else if (mode === "failed") {
     status.hidden = false;
     status.textContent = "DM 正在忙別桌，觀察報告晚點再來拿。";

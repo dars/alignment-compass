@@ -330,6 +330,19 @@ h1 {
 .result-block ul { padding-left: 1.2em; }
 .result-block li { margin-bottom: 8px; }
 
+/* 敘事等待中的小轉圈（沿用 d20 的 spin keyframes） */
+.spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  vertical-align: -1px;
+  border: 2px solid var(--border);
+  border-top-color: var(--gold-bright);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 .extend-block { text-align: center; }
 .extend-block p { margin-bottom: 14px; color: var(--ink-dim); }
 
