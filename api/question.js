@@ -22,13 +22,19 @@ export default async function handler(req, res) {
 
     const index = prev.length;
 
-    // 優先從題目池取（<1 秒）；池空或 KV 未設定時退回現場生成
+    // 此裝置看過的題目 id（由前端 localStorage 提供），避免重複遇題
+    const seenIds = Array.isArray(body.seen)
+      ? body.seen.filter((s) => typeof s === "string").slice(0, 500)
+      : [];
+
+    // 優先從題目池取（<1 秒）；池空、全看過或 KV 未設定時退回現場生成
     let q = null;
     if (kvEnabled) {
       try {
         q = await drawFromPool({
           usedThemes: prev.map((p) => p.theme),
           prevQuestions: prev.map((p) => p.question),
+          seenIds,
         });
       } catch (err) {
         console.error("題目池讀取失敗，改為現場生成：", err.message);
@@ -44,6 +50,7 @@ export default async function handler(req, res) {
       question: q.question,
       options: q.options.map(({ id, text }) => ({ id, text })), // 不洩漏 alignment
       token,
+      qid: q.id ?? null, // 池題才有；前端記錄避免重複遇題
     });
 
     // 回應送出後在背景補池（Vercel 靠 waitUntil 延續執行）

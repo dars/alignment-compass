@@ -31,6 +31,31 @@ function showLoading(text, hint) {
   show("loading");
 }
 
+// ─── 已看過的題目（此裝置）────────────────────────────────
+
+const SEEN_KEY = "ac-seen-qids";
+
+function loadSeen() {
+  try {
+    const a = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
+    return Array.isArray(a) ? a : [];
+  } catch {
+    return [];
+  }
+}
+
+function recordSeen(qid) {
+  if (!qid) return;
+  try {
+    const a = loadSeen();
+    if (!a.includes(qid)) {
+      a.push(qid);
+      while (a.length > 300) a.shift(); // 只留最近 300 筆
+      localStorage.setItem(SEEN_KEY, JSON.stringify(a));
+    }
+  } catch {}
+}
+
 // ─── API ──────────────────────────────────────────────────
 
 async function api(path, body) {
@@ -48,10 +73,12 @@ function fetchNextQuestion() {
   if (!inflight) {
     inflight = api("/api/question", {
       prev: state.questions.map((q) => q.token),
+      seen: loadSeen(),
     })
       .then((q) => {
         state.questions.push(q);
         state.total = q.total;
+        recordSeen(q.qid);
         inflight = null;
         return q;
       })
@@ -90,7 +117,7 @@ function answeredPayload() {
 // ─── 流程 ─────────────────────────────────────────────────
 
 async function startQuiz() {
-  showLoading("正在擲骰生成第一題……", "AI 每次都會即時編寫全新的冒險情境");
+  showLoading("正在擲骰準備題目……", "DM 正在為你挑選冒險情境");
   state.questions = [];
   state.answers = [];
   state.current = 0;

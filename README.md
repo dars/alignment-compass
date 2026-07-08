@@ -18,7 +18,7 @@ Ollama /api/chat（structured outputs，JSON Schema）
 設計重點：
 
 - **無狀態（serverless-ready）**：沒有 server session。每題的隱藏資料（選項的 `alignment`／`confidence`）以 AES-256-GCM 加密成 token 交由前端持有、答題時原樣帶回；GCM 認證標籤防竄改，題號防重複，token 兩小時過期。玩家在 DevTools 只看得到密文。
-- **題目池（可選，強烈建議）**：設定 Upstash Redis（REST API，純 fetch）後，`/api/question` 優先從預生成的題目池取題（**<1 秒**），取用後透過 `waitUntil` 在背景生成新題回補；池空或 KV 未設定時自動退回現場生成（qwen3:8b 約 15~21 秒）。抽題時避開該場已用過的主題與題目。
+- **題目池（可選，強烈建議）**：設定 Upstash Redis（REST API，純 fetch）後，`/api/question` 優先從預生成的題目池取題（**<1 秒**）；池空、KV 未設定或此裝置題目都看過時退回現場生成（qwen3:8b 約 15~21 秒）。每題可輪替使用 `POOL_MAX_USES`（預設 3）次，用滿棄置、由背景補池（`waitUntil`＋全域鎖）生成新題補位。抽題時避開該場已用過的主題與題目，並透過前端 localStorage 記錄的題目 id 避免同一裝置重複遇題。
 - **逐題供題**：前端在玩家作答時背景預取下一題。
 - **統計判定，AI 敘事**：陣營代碼映射 (law, good) 座標、confidence 加權平均得兩軸分數（±100，|分數| ≤ 20 為中立帶）；判定信心指數 = 進度 ×（55% 分數扎實度 + 45% 作答一致性）。敘事失敗不影響判定結果。
 - **多層輸出防護**：選項陣營相異驗證（重試最多 4 次）、控制符／選項列表／schema 欄位名／陣營標注洩漏的偵測與清洗、跨題主題與情境去重。
