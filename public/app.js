@@ -608,7 +608,7 @@ async function copyResult() {
 
 const CARD = {
   W: 1080,
-  H: 1350,
+  H: 1420,
   bg: "#171210",
   bgHi: "#2a2015",
   card: "#1e1813",
@@ -782,16 +782,16 @@ async function makeShareCard() {
   });
 
   // 兩軸
-  drawCardAxis(ctx, 1112, "混亂", "守序", r.lawScore, `秩序軸：${axisText(r.lawScore, "守序", "混亂")}`);
-  drawCardAxis(ctx, 1204, "邪惡", "善良", r.goodScore, `道德軸：${axisText(r.goodScore, "善良", "邪惡")}`);
+  drawCardAxis(ctx, 1120, "混亂", "守序", r.lawScore, `秩序軸：${axisText(r.lawScore, "守序", "混亂")}`);
+  drawCardAxis(ctx, 1216, "邪惡", "善良", r.goodScore, `道德軸：${axisText(r.goodScore, "善良", "邪惡")}`);
 
   // 信心與次要陣營
   let infoLine = `判定信心 ${r.confidence}%（${r.level}）`;
   const secMeta = r.secondary && ALIGNMENTS[r.secondary.alignment];
   if (secMeta) infoLine += `　・　一步之遙：${secMeta.zh}`;
-  cardText(ctx, infoLine, CARD.W / 2, 1266, { size: 26, color: CARD.dim });
+  cardText(ctx, infoLine, CARD.W / 2, 1296, { size: 26, color: CARD.dim });
 
-  cardText(ctx, `來測你的 D&D 陣營 → ${location.host}`, CARD.W / 2, 1310, {
+  cardText(ctx, `來測你的 D&D 陣營 → ${location.host}`, CARD.W / 2, 1352, {
     size: 27, color: CARD.gold,
   });
 
