@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 import questionHandler from "./api/question.js";
 import progressHandler from "./api/progress.js";
 import resultHandler from "./api/result.js";
+import refillHandler from "./api/refill.js";
 import { OLLAMA_URL, OLLAMA_MODEL, QUESTION_COUNT } from "./lib/config.js";
+import { kvEnabled } from "./lib/pool.js";
 import { sendJson } from "./lib/http.js";
 
 const PORT = process.env.PORT || 3000;
@@ -19,6 +21,7 @@ const ROUTES = {
   "/api/question": questionHandler,
   "/api/progress": progressHandler,
   "/api/result": resultHandler,
+  "/api/refill": refillHandler,
 };
 
 const MIME = {
@@ -63,4 +66,5 @@ async function serveStatic(urlPath, res) {
 server.listen(PORT, () => {
   console.log(`陣營羅盤 Alignment Compass 已啟動：http://localhost:${PORT}`);
   console.log(`Ollama：${OLLAMA_URL}，模型 ${OLLAMA_MODEL}，每場 ${QUESTION_COUNT} 題`);
+  console.log(`題目池：${kvEnabled ? "已啟用（KV）" : "未設定 KV，一律現場生成"}`);
 });

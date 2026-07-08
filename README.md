@@ -18,7 +18,8 @@ Ollama /api/chat（structured outputs，JSON Schema）
 設計重點：
 
 - **無狀態（serverless-ready）**：沒有 server session。每題的隱藏資料（選項的 `alignment`／`confidence`）以 AES-256-GCM 加密成 token 交由前端持有、答題時原樣帶回；GCM 認證標籤防竄改，題號防重複，token 兩小時過期。玩家在 DevTools 只看得到密文。
-- **逐題生成**：單題等待時間短（qwen3:8b 約 15~21 秒），前端在玩家作答時背景預取下一題。
+- **題目池（可選，強烈建議）**：設定 Upstash Redis（REST API，純 fetch）後，`/api/question` 優先從預生成的題目池取題（**<1 秒**），取用後透過 `waitUntil` 在背景生成新題回補；池空或 KV 未設定時自動退回現場生成（qwen3:8b 約 15~21 秒）。抽題時避開該場已用過的主題與題目。
+- **逐題供題**：前端在玩家作答時背景預取下一題。
 - **統計判定，AI 敘事**：陣營代碼映射 (law, good) 座標、confidence 加權平均得兩軸分數（±100，|分數| ≤ 20 為中立帶）；判定信心指數 = 進度 ×（55% 分數扎實度 + 45% 作答一致性）。敘事失敗不影響判定結果。
 - **多層輸出防護**：選項陣營相異驗證（重試最多 4 次）、控制符／選項列表／schema 欄位名／陣營標注洩漏的偵測與清洗、跨題主題與情境去重。
 
@@ -45,7 +46,20 @@ npm start              # server.js：靜態檔案 + 轉接 api/ handlers
 | `OLLAMA_MODEL` | | 預設 `qwen3:8b` |
 | `SESSION_SECRET` | ✅ | token 加密密鑰（任意長隨機字串）。未設定時每個實例各自隨機生成，多實例下進行中的測驗會失效 |
 | `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | 建議 | Cloudflare Access Service Token；設定後所有對 Ollama 的請求會帶上對應 header |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | 建議 | Upstash Redis REST 憑證（Vercel Marketplace 安裝 Upstash 會自動注入）。設定後啟用題目池 |
+| `REFILL_KEY` | 建議 | `/api/refill` 補池端點的金鑰；未設定則端點停用 |
+| `POOL_TARGET` | | 題目池目標題數，預設 40 |
 | `QUESTION_COUNT` | | 每場題數，預設 12 |
+
+### 題目池初始化
+
+```sh
+# 本機 .env 填入 KV_REST_API_URL / KV_REST_API_TOKEN 後，一次灌 40 題（約 15 分鐘）
+node scripts/seed-pool.mjs 40
+
+# 或對已部署的站台分批補（每次最多 2 題）
+curl -X POST "https://你的網域/api/refill?key=REFILL_KEY"
+```
 
 注意：出題含重試最壞情況可能超過 60 秒（Hobby 方案函式上限），此時前端會自動重試該題。
 
@@ -60,7 +74,8 @@ npm start              # server.js：靜態檔案 + 轉接 api/ handlers
 
 | 端點 | 方法 | 說明 |
 |---|---|---|
-| `/api/question` | POST | 傳入 `{prev: [先前題目的 token]}`，回傳 `{index, total, question, options: [{id, text}], token}` |
+| `/api/question` | POST | 傳入 `{prev: [先前題目的 token]}`，回傳 `{index, total, question, options: [{id, text}], token}`；優先取自題目池 |
+| `/api/refill` | POST | `?key=REFILL_KEY`，補充題目池（單次最多 2 題），回傳 `{pool, added, target}` |
 | `/api/progress` | POST | 傳入 `{answers: [{token, choice}]}`（已答部分），回傳 `{answered, total, confidence, level}` |
 | `/api/result` | POST | 傳入 `{answers: [{token, choice}]}`（全部），回傳 `{alignment, lawScore, goodScore, confidence, level, analysis, roleplayTips}` |
 
