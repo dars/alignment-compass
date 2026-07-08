@@ -8,6 +8,8 @@ const state = {
   current: 0,
   result: null,
   retryAction: null,
+  extendBase: 0,   // 加測起點（0 = 未加測）
+  extended: false, // 已用過加測
 };
 
 let inflight = null; // 進行中的取題請求（single-flight）
@@ -92,6 +94,8 @@ async function startQuiz() {
   state.answers = [];
   state.current = 0;
   state.result = null;
+  state.extendBase = 0;
+  state.extended = false;
   $("confidence-line").hidden = true;
   try {
     await ensureQuestion(0);
@@ -107,7 +111,10 @@ async function startQuiz() {
 function renderQuestion() {
   const q = state.questions[state.current];
 
-  $("quiz-counter").textContent = `${state.current + 1} / ${state.total}`;
+  const inExtend = state.extendBase > 0 && state.current >= state.extendBase;
+  $("quiz-counter").textContent = inExtend
+    ? `加測 ${state.current - state.extendBase + 1} / ${state.total - state.extendBase}`
+    : `${state.current + 1} / ${state.total}`;
   $("progress-bar").style.width = `${(state.current / state.total) * 100}%`;
   $("question-text").textContent = q.question;
   $("btn-back").hidden = state.current === 0;
@@ -151,16 +158,31 @@ async function choose(optionId) {
   }
 
   // 下一題還沒生好，顯示等待畫面
-  showLoading("DM 正在構思下一題……", `第 ${next + 1} 題生成中`);
+  resumeAt(next);
+}
+
+// 前往第 i 題（必要時等待生成），失敗可重試
+async function resumeAt(i, loadingText) {
+  showLoading(loadingText || "DM 正在構思下一題……", `第 ${i + 1} 題生成中`);
   try {
-    await ensureQuestion(next);
-    state.current = next;
+    await ensureQuestion(i);
+    state.current = i;
     renderQuestion();
     show("quiz");
     prefetch();
   } catch (err) {
-    showError(err.message, () => choose(optionId));
+    showError(err.message, () => resumeAt(i, loadingText));
   }
+}
+
+// 信心偏低時的自願加測
+function extendQuiz() {
+  const count = state.result?.extend?.count || 4;
+  state.extended = true;
+  state.extendBase = state.total;
+  state.total += count;
+  state.answers.push(...new Array(count).fill(null));
+  resumeAt(state.extendBase, "DM 正在加開試煉……");
 }
 
 function goBack() {
@@ -201,7 +223,7 @@ function axisText(score, posLabel, negLabel) {
 const LEVEL_EXPLAIN = {
   高: "傾向明確且作答一致",
   中: "傾向成形，但仍有搖擺空間",
-  低: "分數貼近門檻或作答傾向搖擺，結果僅供參考",
+  低: "你落在陣營的交界地帶，相鄰陣營的特質你都有一些",
 };
 
 function renderResult() {
@@ -231,10 +253,22 @@ function renderResult() {
   grid.innerHTML = "";
   for (const key of GRID_ORDER) {
     const cell = document.createElement("div");
-    cell.className = "cell" + (key === r.alignment ? " hit" : "");
+    const near = r.secondary && key === r.secondary.alignment;
+    cell.className = "cell" + (key === r.alignment ? " hit" : near ? " near" : "");
     cell.textContent = ALIGNMENTS[key].zh;
     grid.appendChild(cell);
   }
+
+  // 一步之遙的次要陣營
+  const sec = r.secondary && ALIGNMENTS[r.secondary.alignment];
+  $("result-secondary").textContent = sec
+    ? `一步之遙：${sec.zh}（${sec.en}）—— 你離這個陣營只差 ${r.secondary.distance} 分`
+    : "";
+
+  // 信心偏低且尚有額度時提供加測
+  const showExtend = Boolean(r.extend) && !state.extended;
+  $("block-extend").hidden = !showExtend;
+  if (showExtend) $("btn-extend").textContent = `再答 ${r.extend.count} 題`;
 
   // 高亮玩家落在的區段（門檻 ±20，與後端 NEUTRAL_THRESHOLD 一致）
   const setZone = (containerId, score) => {
@@ -271,6 +305,9 @@ async function copyResult() {
     `秩序軸：${axisText(r.lawScore, "守序", "混亂")}\n` +
     `道德軸：${axisText(r.goodScore, "善良", "邪惡")}`;
   if (r.confidence != null) text += `\n判定信心：${r.confidence}%（${r.level}）`;
+  if (r.secondary && ALIGNMENTS[r.secondary.alignment]) {
+    text += `\n一步之遙：${ALIGNMENTS[r.secondary.alignment].zh}`;
+  }
   if (r.analysis) text += `\n\nDM 的觀察：${r.analysis}`;
   try {
     await navigator.clipboard.writeText(text);
@@ -293,6 +330,7 @@ function showError(message, retryAction) {
 
 $("btn-start").addEventListener("click", startQuiz);
 $("btn-back").addEventListener("click", goBack);
+$("btn-extend").addEventListener("click", extendQuiz);
 $("btn-restart").addEventListener("click", startQuiz);
 $("btn-copy").addEventListener("click", copyResult);
 $("btn-retry").addEventListener("click", () => {

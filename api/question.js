@@ -1,4 +1,4 @@
-import { generateQuestion, QUESTION_COUNT } from "../lib/quiz.js";
+import { generateQuestion, QUESTION_COUNT, MAX_QUESTIONS } from "../lib/quiz.js";
 import { kvEnabled, drawFromPool, refillPool } from "../lib/pool.js";
 import { defer } from "../lib/defer.js";
 import { seal, unseal } from "../lib/token.js";
@@ -11,7 +11,8 @@ export default async function handler(req, res) {
 
     const prevTokens = Array.isArray(body.prev) ? body.prev : [];
     if (prevTokens.length > 40) throw new HttpError(400, "prev 格式不正確");
-    if (prevTokens.length >= QUESTION_COUNT) throw new HttpError(409, "題目已全部生成");
+    // 上限含信心偏低時的加測額度
+    if (prevTokens.length >= MAX_QUESTIONS) throw new HttpError(409, "題目已全部生成");
 
     // 解開先前題目的 token 取得主題與文字，供去重使用
     const prev = prevTokens.map((t) => {

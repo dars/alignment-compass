@@ -1,4 +1,4 @@
-import { axesFromPicks, assessConfidence, QUESTION_COUNT } from "../lib/quiz.js";
+import { axesFromPicks, assessConfidence, QUESTION_COUNT, MAX_QUESTIONS } from "../lib/quiz.js";
 import { resolveAnswers } from "../lib/answers.js";
 import { readJson, sendJson, handleError, HttpError } from "../lib/http.js";
 
@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     if (req.method !== "POST") throw new HttpError(405, "Method not allowed");
     const body = await readJson(req);
 
-    const picks = resolveAnswers(body.answers ?? [], { maxCount: QUESTION_COUNT });
+    const picks = resolveAnswers(body.answers ?? [], { maxCount: MAX_QUESTIONS });
     const axes = axesFromPicks(picks);
     const { confidence, level } = assessConfidence(picks, QUESTION_COUNT, axes);
 

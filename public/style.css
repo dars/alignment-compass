@@ -245,6 +245,11 @@ h1 {
   border-radius: 3px;
 }
 
+.alignment-grid .cell.near {
+  border-color: rgba(201, 162, 75, 0.5);
+  color: var(--gold);
+}
+
 .alignment-grid .cell.hit {
   border-color: var(--gold-bright);
   background: linear-gradient(180deg, #3a2d17, #2b2010);
@@ -324,6 +329,9 @@ h1 {
 
 .result-block ul { padding-left: 1.2em; }
 .result-block li { margin-bottom: 8px; }
+
+.extend-block { text-align: center; }
+.extend-block p { margin-bottom: 14px; color: var(--ink-dim); }
 
 .result-actions {
   display: flex;
