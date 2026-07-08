@@ -31,12 +31,19 @@
         回答由 AI 生成的冒險情境題，<br />
         看看你的靈魂落在 D&amp;D 九大陣營的哪一格。
       </p>
+      <details class="about-alignments">
+        <summary>什麼是九大陣營？</summary>
+        <p>
+          D&amp;D 用兩條軸描述角色的價值觀：「秩序軸」看你傾向遵循規則與承諾（守序），還是隨心而行（混亂）；「道德軸」看你把他人的福祉（善良）還是自身的利益（邪惡）放在前面。兩軸各分三段，交織成九種陣營——沒有好壞之分，只有你是誰。
+        </p>
+      </details>
       <div class="grid-preview" aria-hidden="true">
         <span>守序善良</span><span>中立善良</span><span>混亂善良</span>
         <span>守序中立</span><span>絕對中立</span><span>混亂中立</span>
         <span>守序邪惡</span><span>中立邪惡</span><span>混亂邪惡</span>
       </div>
       <button id="btn-start" class="btn-primary">擲骰，開始測驗</button>
+      <p class="hint">約 3～5 分鐘</p>
       <div><button id="btn-continue" class="btn-ghost" hidden>繼續上次的測驗</button></div>
     </section>
 
@@ -70,7 +77,10 @@
       </header>
       <h2 id="question-text"></h2>
       <div id="options"></div>
-      <button id="btn-back" class="btn-ghost" hidden>← 上一題</button>
+      <div class="quiz-footer">
+        <button id="btn-back" class="btn-ghost" hidden>← 上一題</button>
+        <button id="btn-abandon" class="btn-quiet">放棄這場測驗</button>
+      </div>
     </section>
 
     <!-- 結果畫面 -->
@@ -126,6 +136,11 @@
         <p id="result-examples"></p>
       </div>
 
+      <details class="result-block review-block">
+        <summary>回顧你的選擇</summary>
+        <ol id="review-list"></ol>
+      </details>
+
       <div class="result-actions">
         <button id="btn-copy" class="btn-ghost">複製結果</button>
         <button id="btn-restart" class="btn-primary">再測一次</button>
@@ -137,7 +152,10 @@
       <div class="compass-mark">☠</div>
       <h2>豁免檢定失敗</h2>
       <p id="error-message" class="intro"></p>
-      <button id="btn-retry" class="btn-primary">再試一次</button>
+      <div class="result-actions">
+        <button id="btn-retry" class="btn-primary">再試一次</button>
+        <button id="btn-home" class="btn-ghost">回到首頁</button>
+      </div>
     </section>
 
     <footer class="site-footer">

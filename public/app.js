@@ -275,6 +275,13 @@ function renderQuestion() {
     btn.addEventListener("click", () => pick(btn, option.id));
     container.appendChild(btn);
   }
+
+  // 題目切換微轉場（重觸發淡入動畫）
+  for (const el of [$("question-text"), container]) {
+    el.classList.remove("q-fade");
+    void el.offsetWidth;
+    el.classList.add("q-fade");
+  }
 }
 
 // 點擊回饋：亮起選中樣式、短暫停留後才前進（也防止連點）
@@ -355,6 +362,14 @@ function goBack() {
     saveProgress();
     renderQuestion();
   }
+}
+
+// 放棄目前測驗，回到首頁
+function goHome() {
+  clearProgress();
+  state.result = null;
+  $("btn-continue").hidden = true;
+  show("start");
 }
 
 async function submitAnswers() {
@@ -468,6 +483,12 @@ function renderResult() {
 
   const grid = $("result-grid");
   grid.innerHTML = "";
+  const secMeta = r.secondary && ALIGNMENTS[r.secondary.alignment];
+  grid.setAttribute("role", "img");
+  grid.setAttribute(
+    "aria-label",
+    `九宮格陣營表，你的陣營：${meta.zh}${secMeta ? `，一步之遙：${secMeta.zh}` : ""}`
+  );
   for (const key of GRID_ORDER) {
     const cell = document.createElement("div");
     const near = r.secondary && key === r.secondary.alignment;
@@ -475,6 +496,24 @@ function renderResult() {
     cell.textContent = ALIGNMENTS[key].zh;
     grid.appendChild(cell);
   }
+
+  // 回顧你的選擇（含加測題）
+  const review = $("review-list");
+  review.innerHTML = "";
+  state.questions.forEach((q, i) => {
+    if (state.answers[i] == null) return;
+    const chosen = q.options.find((o) => o.id === state.answers[i]);
+    if (!chosen) return;
+    const li = document.createElement("li");
+    const qDiv = document.createElement("div");
+    qDiv.className = "review-q";
+    qDiv.textContent = q.question;
+    const aDiv = document.createElement("div");
+    aDiv.className = "review-a";
+    aDiv.textContent = `➤ ${chosen.text}`;
+    li.append(qDiv, aDiv);
+    review.appendChild(li);
+  });
 
   // 一步之遙的次要陣營
   const sec = r.secondary && ALIGNMENTS[r.secondary.alignment];
@@ -574,6 +613,10 @@ function showError(message, retryAction) {
 $("btn-start").addEventListener("click", startQuiz);
 $("btn-continue").addEventListener("click", continueQuiz);
 $("btn-back").addEventListener("click", goBack);
+$("btn-abandon").addEventListener("click", () => {
+  if (confirm("要放棄這場測驗嗎？目前的作答不會保留。")) goHome();
+});
+$("btn-home").addEventListener("click", goHome);
 $("btn-extend").addEventListener("click", extendQuiz);
 $("btn-narrative-retry").addEventListener("click", requestNarrative);
 
