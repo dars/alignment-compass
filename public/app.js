@@ -80,6 +80,68 @@ function showLoading(text, hint) {
   }
 }
 
+// ─── 進行中測驗的保存（重新整理不掉場）────────────────────
+
+const PROGRESS_KEY = "ac-quiz-progress";
+const PROGRESS_TTL_MS = 2 * 60 * 60 * 1000; // 與 token 有效期一致
+
+function saveProgress() {
+  try {
+    sessionStorage.setItem(
+      PROGRESS_KEY,
+      JSON.stringify({
+        t: Date.now(),
+        questions: state.questions,
+        answers: state.answers,
+        current: state.current,
+        total: state.total,
+        extendBase: state.extendBase,
+        extended: state.extended,
+      })
+    );
+  } catch {}
+}
+
+function clearProgress() {
+  try {
+    sessionStorage.removeItem(PROGRESS_KEY);
+  } catch {}
+}
+
+function loadProgress() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(PROGRESS_KEY) || "null");
+    if (!s || Date.now() - s.t > PROGRESS_TTL_MS) return null;
+    if (!Array.isArray(s.questions) || s.questions.length === 0) return null;
+    if (!Array.isArray(s.answers) || !s.total) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+function continueQuiz() {
+  const s = loadProgress();
+  if (!s) {
+    $("btn-continue").hidden = true;
+    return;
+  }
+  state.questions = s.questions;
+  state.answers = s.answers;
+  state.total = s.total;
+  state.extendBase = s.extendBase || 0;
+  state.extended = Boolean(s.extended);
+  state.result = null;
+
+  const firstUnanswered = state.answers.findIndex((a) => a == null);
+  if (firstUnanswered === -1) return submitAnswers(); // 都答完了，直接結算
+  if (firstUnanswered >= state.questions.length) return resumeAt(firstUnanswered);
+  state.current = firstUnanswered;
+  renderQuestion();
+  show("quiz");
+  prefetch();
+}
+
 // ─── 已看過的題目（此裝置）────────────────────────────────
 
 const SEEN_KEY = "ac-seen-qids";
@@ -129,6 +191,7 @@ function fetchNextQuestion() {
         // total 只在開場採用一次；加測會自行加大 total，不可被回應覆寫
         if (!state.total) state.total = q.total;
         recordSeen(q.qid);
+        saveProgress();
         inflight = null;
         return q;
       })
@@ -175,6 +238,8 @@ async function startQuiz() {
   state.result = null;
   state.extendBase = 0;
   state.extended = false;
+  clearProgress();
+  $("btn-continue").hidden = true;
   $("confidence-line").hidden = true;
   setNarrativeStatus("idle"); // 停掉可能還在跳動的等待計時器
   try {
@@ -205,9 +270,25 @@ function renderQuestion() {
     const btn = document.createElement("button");
     btn.className = "option";
     btn.textContent = option.text;
-    btn.addEventListener("click", () => choose(option.id));
+    // 回看時高亮已選過的答案
+    if (state.answers[state.current] === option.id) btn.classList.add("selected");
+    btn.addEventListener("click", () => pick(btn, option.id));
     container.appendChild(btn);
   }
+}
+
+// 點擊回饋：亮起選中樣式、短暫停留後才前進（也防止連點）
+let picking = false;
+
+function pick(btn, optionId) {
+  if (picking) return;
+  picking = true;
+  for (const b of $("options").children) b.classList.remove("selected");
+  btn.classList.add("selected");
+  setTimeout(() => {
+    picking = false;
+    choose(optionId);
+  }, 180);
 }
 
 // 每答一題就向後端要即時信心指數（純統計、即時回應；只有信心值，不含方向）
@@ -224,6 +305,7 @@ function updateConfidence() {
 
 async function choose(optionId) {
   state.answers[state.current] = optionId;
+  saveProgress();
   updateConfidence();
   const next = state.current + 1;
 
@@ -263,12 +345,14 @@ function extendQuiz() {
   state.extendBase = state.total;
   state.total += count;
   state.answers.push(...new Array(count).fill(null));
+  saveProgress();
   resumeAt(state.extendBase, "DM 正在加開試煉……");
 }
 
 function goBack() {
   if (state.current > 0) {
     state.current -= 1;
+    saveProgress();
     renderQuestion();
   }
 }
@@ -281,6 +365,7 @@ async function submitAnswers() {
       throw new Error("回傳的陣營代碼不正確");
     }
     state.result = result;
+    clearProgress(); // 已完賽，清除續玩進度
     renderResult();
     show("result");
     requestNarrative(); // 敘事非同步載入，不擋結果顯示
@@ -428,6 +513,18 @@ function renderResult() {
   });
 }
 
+const SHARE_LABEL = navigator.share ? "分享結果" : "複製結果";
+
+function trackShare() {
+  // 匿名事件計數（fire-and-forget，失敗無妨）
+  fetch("/api/track", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event: "copy_result" }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 async function copyResult() {
   const r = state.result;
   const meta = ALIGNMENTS[r.alignment];
@@ -441,17 +538,24 @@ async function copyResult() {
     text += `\n一步之遙：${ALIGNMENTS[r.secondary.alignment].zh}`;
   }
   if (r.analysis) text += `\n\nDM 的觀察：${r.analysis}`;
+  text += `\n\n來測你的 D&D 陣營 → ${location.origin}`;
+
+  // 行動裝置優先用原生分享面板
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "陣營羅盤 Alignment Compass", text });
+      trackShare();
+      return;
+    } catch (err) {
+      if (err.name === "AbortError") return; // 使用者取消，不降級
+      // 其他錯誤 → 退回複製
+    }
+  }
   try {
     await navigator.clipboard.writeText(text);
     $("btn-copy").textContent = "已複製 ✓";
-    setTimeout(() => ($("btn-copy").textContent = "複製結果"), 2000);
-    // 匿名事件計數（fire-and-forget，失敗無妨）
-    fetch("/api/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event: "copy_result" }),
-      keepalive: true,
-    }).catch(() => {});
+    setTimeout(() => ($("btn-copy").textContent = SHARE_LABEL), 2000);
+    trackShare();
   } catch {
     $("btn-copy").textContent = "複製失敗";
   }
@@ -468,9 +572,27 @@ function showError(message, retryAction) {
 // ─── 綁定 ─────────────────────────────────────────────────
 
 $("btn-start").addEventListener("click", startQuiz);
+$("btn-continue").addEventListener("click", continueQuiz);
 $("btn-back").addEventListener("click", goBack);
 $("btn-extend").addEventListener("click", extendQuiz);
 $("btn-narrative-retry").addEventListener("click", requestNarrative);
+
+// 鍵盤作答：答題畫面按 1~4 選擇選項
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!$("screen-quiz").classList.contains("active")) return;
+  const n = Number(e.key);
+  if (n >= 1 && n <= 4) {
+    const btn = $("options").children[n - 1];
+    if (btn) btn.click();
+  }
+});
+
+// 開場時偵測未完成的測驗，提供續玩
+if (loadProgress()) $("btn-continue").hidden = false;
+
+// 分享按鈕依裝置能力顯示對應文案
+$("btn-copy").textContent = SHARE_LABEL;
 $("btn-restart").addEventListener("click", startQuiz);
 $("btn-copy").addEventListener("click", copyResult);
 $("btn-retry").addEventListener("click", () => {

@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>陣營羅盤 Alignment Compass — D&D 九大陣營測驗</title>
+  <meta name="description" content="回答 AI 生成的冒險情境題，看看你的靈魂落在 D&D 九大陣營的哪一格。附兩軸分數、判定信心與 DM 的個人化觀察。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="陣營羅盤 Alignment Compass — D&D 九大陣營測驗" />
+  <meta property="og:description" content="回答 AI 生成的冒險情境題，測出你的 D&D 陣營。你是守序善良的聖者，還是混亂中立的浪客？" />
+  <meta property="og:url" content="https://alignment-compass.vercel.app/" />
+  <meta property="og:image" content="https://alignment-compass.vercel.app/logo.jpg" />
+  <meta name="twitter:card" content="summary" />
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -21,7 +28,7 @@
       <h1 class="sr-only">陣營羅盤 Alignment Compass</h1>
       <p class="intro">
         在踏入地城之前，先認識你自己。<br />
-        回答由 AI 生成的 12 道冒險情境題，<br />
+        回答由 AI 生成的冒險情境題，<br />
         看看你的靈魂落在 D&amp;D 九大陣營的哪一格。
       </p>
       <div class="grid-preview" aria-hidden="true">
@@ -30,6 +37,7 @@
         <span>守序邪惡</span><span>中立邪惡</span><span>混亂邪惡</span>
       </div>
       <button id="btn-start" class="btn-primary">擲骰，開始測驗</button>
+      <div><button id="btn-continue" class="btn-ghost" hidden>繼續上次的測驗</button></div>
     </section>
 
     <!-- 載入畫面 -->
@@ -132,6 +140,9 @@
       <button id="btn-retry" class="btn-primary">再試一次</button>
     </section>
 
+    <footer class="site-footer">
+      本站不收集任何個人資料&nbsp;・&nbsp;<a href="https://github.com/dars/alignment-compass" target="_blank" rel="noopener">GitHub</a>
+    </footer>
   </main>
 
   <script src="alignments.js"></script>

@@ -263,6 +263,13 @@ h1 {
   transform: translateX(3px);
 }
 
+/* 已選中／點擊當下的確認狀態 */
+.option.selected {
+  border-color: var(--gold-bright);
+  background: #2d2314;
+  box-shadow: 0 0 12px rgba(201, 162, 75, 0.25);
+}
+
 /* hover 星芒標記：只在真正有滑鼠的裝置顯示，
    避免觸控裝置 sticky hover 讓 ✦ 殘留、被誤讀成選項提示 */
 @media (hover: hover) and (pointer: fine) {
@@ -450,6 +457,23 @@ h1 {
 #screen-error { padding-top: 60px; }
 #screen-error .compass-mark { color: var(--danger); }
 #screen-error h2 { color: var(--danger); margin-bottom: 12px; }
+
+#btn-continue { margin-top: 14px; }
+
+.site-footer {
+  margin-top: 56px;
+  padding-bottom: 8px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+}
+
+.site-footer a {
+  color: var(--gold);
+  text-decoration: none;
+}
+
+.site-footer a:hover { color: var(--gold-bright); }
 
 @media (max-width: 480px) {
   h1 { font-size: 2rem; }
