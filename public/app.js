@@ -77,7 +77,8 @@ function fetchNextQuestion() {
     })
       .then((q) => {
         state.questions.push(q);
-        state.total = q.total;
+        // total 只在開場採用一次；加測會自行加大 total，不可被回應覆寫
+        if (!state.total) state.total = q.total;
         recordSeen(q.qid);
         inflight = null;
         return q;
@@ -121,6 +122,7 @@ async function startQuiz() {
   state.questions = [];
   state.answers = [];
   state.current = 0;
+  state.total = 0;
   state.result = null;
   state.extendBase = 0;
   state.extended = false;
