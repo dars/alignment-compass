@@ -466,6 +466,57 @@ const LEVEL_EXPLAIN = {
   低: "你落在陣營的交界地帶，相鄰陣營的特質你都有一些",
 };
 
+// 結果揭示動畫：掃描九宮格 → 減速 → 定格於陣營格金光綻放 → 名稱浮現
+let revealSeq = 0;
+
+function revealResult(cells, r) {
+  const seq = ++revealSeq;
+  const hitIdx = GRID_ORDER.indexOf(r.alignment);
+  const nearIdx = r.secondary ? GRID_ORDER.indexOf(r.secondary.alignment) : -1;
+  const nameEls = [$("result-name"), $("result-en"), $("result-title")];
+
+  const applyFinal = (animated) => {
+    if (seq !== revealSeq) return;
+    cells.forEach((c) => c.classList.remove("scan"));
+    cells[hitIdx].classList.add("hit");
+    if (animated) cells[hitIdx].classList.add("reveal-pop");
+    if (nearIdx >= 0) cells[nearIdx].classList.add("near");
+    nameEls.forEach((el) => {
+      el.classList.remove("pre-reveal");
+      if (animated) {
+        el.classList.remove("name-reveal");
+        void el.offsetWidth;
+        el.classList.add("name-reveal");
+      }
+    });
+  };
+
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return applyFinal(false);
+  }
+
+  nameEls.forEach((el) => el.classList.add("pre-reveal"));
+
+  // 一整圈 + 掃到陣營格為止；末段逐步減速
+  const order = [];
+  for (let i = 0; i < 9; i++) order.push(i);
+  for (let i = 0; i <= hitIdx; i++) order.push(i);
+
+  let t = 200;
+  let delay = 65;
+  order.forEach((idx, n) => {
+    const isLast = n === order.length - 1;
+    setTimeout(() => {
+      if (seq !== revealSeq) return;
+      cells.forEach((c) => c.classList.remove("scan"));
+      if (isLast) applyFinal(true);
+      else cells[idx].classList.add("scan");
+    }, t);
+    if (order.length - n <= 6) delay += 40; // 最後六步減速
+    t += delay;
+  });
+}
+
 function renderResult() {
   const r = state.result;
   const meta = ALIGNMENTS[r.alignment];
@@ -493,13 +544,16 @@ function renderResult() {
     "aria-label",
     `九宮格陣營表，你的陣營：${meta.zh}${secMeta ? `，一步之遙：${secMeta.zh}` : ""}`
   );
+  const cells = [];
   for (const key of GRID_ORDER) {
     const cell = document.createElement("div");
-    const near = r.secondary && key === r.secondary.alignment;
-    cell.className = "cell" + (key === r.alignment ? " hit" : near ? " near" : "");
+    cell.className = "cell";
     cell.textContent = ALIGNMENTS[key].zh;
+    if (ALIGNMENTS[key].hint) cell.dataset.hint = ALIGNMENTS[key].hint;
     grid.appendChild(cell);
+    cells.push(cell);
   }
+  revealResult(cells, r); // 開獎動畫（reduced-motion 直接定格）
 
   // 回顧你的選擇（含加測題）
   const review = $("review-list");
@@ -617,7 +671,7 @@ const CARD = {
   gold: "#c9a24b",
   goldBright: "#e6c26e",
   border: "#3a2f22",
-  serif: '"Songti TC", "Noto Serif TC", "Iowan Old Style", Georgia, serif',
+  serif: '"Songti TC", "Noto Serif TC", "Iowan Old Style", Georgia, serif', // 與網站 --serif 一致
 };
 
 function loadLogo() {

@@ -7,8 +7,20 @@
   --gold-bright: #e6c26e;
   --border: #3a2f22;
   --danger: #b3543f;
+  /* Mac 用 Songti 維持現有質感；其他平台（尤其 Windows）退到 Noto Serif TC webfont */
   --serif: "Songti TC", "Noto Serif TC", "Iowan Old Style", Georgia, serif;
 }
+
+/* 深色捲軸，與主題一致 */
+html {
+  scrollbar-color: #3a2f22 #14100d;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: #14100d; }
+::-webkit-scrollbar-thumb { background: #3a2f22; border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #4a3d29; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -21,6 +33,17 @@ body {
   display: flex;
   justify-content: center;
   line-height: 1.7;
+}
+
+/* 極淡噪點質感層（羊皮紙感） */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 #app {
@@ -370,6 +393,56 @@ h1 {
 .alignment-grid .cell.near {
   border-color: rgba(201, 162, 75, 0.5);
   color: var(--gold);
+}
+
+/* 揭示動畫：掃描中的格子 */
+.alignment-grid .cell.scan {
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  background: #2a2013;
+}
+
+.alignment-grid .cell.reveal-pop {
+  animation: revealPop 0.55s ease;
+}
+
+@keyframes revealPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.14); box-shadow: 0 0 32px rgba(230, 194, 110, 0.65); }
+  100% { transform: scale(1); }
+}
+
+.pre-reveal { opacity: 0; }
+
+.name-reveal { animation: nameIn 0.7s ease; }
+
+@keyframes nameIn {
+  from { opacity: 0; letter-spacing: 0.45em; filter: blur(5px); }
+  to { opacity: 1; }
+}
+
+/* 桌機：滑過九宮格顯示該陣營的一句話 */
+@media (hover: hover) and (pointer: fine) {
+  .alignment-grid .cell { position: relative; cursor: default; }
+
+  .alignment-grid .cell:hover::after {
+    content: attr(data-hint);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    background: #2b2114;
+    border: 1px solid var(--gold);
+    color: var(--ink);
+    font-size: 0.78rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    padding: 7px 12px;
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+    z-index: 5;
+  }
 }
 
 .alignment-grid .cell.hit {
