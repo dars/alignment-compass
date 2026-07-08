@@ -81,6 +81,7 @@ async function startQuiz() {
     state.questions = [];
     state.answers = new Array(session.total).fill(null);
     state.current = 0;
+    $("confidence-line").hidden = true;
     await ensureQuestion(0);
     renderQuestion();
     show("quiz");
@@ -109,8 +110,21 @@ function renderQuestion() {
   }
 }
 
+// 每答一題就向後端要即時信心指數（純統計、即時回應；只有信心值，不含方向）
+function updateConfidence() {
+  api(`/api/session/${state.sessionId}/progress`, { choices: state.answers })
+    .then(({ confidence, level, answered }) => {
+      if (answered === 0) return;
+      const el = $("confidence-line");
+      el.hidden = false;
+      el.textContent = `判定信心 ${confidence}%（${level}）`;
+    })
+    .catch(() => {}); // 純加分資訊，失敗就不顯示
+}
+
 async function choose(optionId) {
   state.answers[state.current] = optionId;
+  updateConfidence();
   const next = state.current + 1;
 
   if (next >= state.total) return submitAnswers();
@@ -162,6 +176,23 @@ async function submitAnswers() {
 
 // ─── 結果渲染 ─────────────────────────────────────────────
 
+// 軸分數 → 帶強度的文字描述（門檻 ±20 為中立帶）
+function axisText(score, posLabel, negLabel) {
+  const abs = Math.abs(score);
+  const dir = score >= 0 ? posLabel : negLabel;
+  if (abs <= 20) {
+    return abs >= 8 ? `中立（略偏${dir} ${abs}）` : `中立（${abs}）`;
+  }
+  const strength = abs >= 80 ? "強烈" : abs >= 55 ? "明顯" : "輕微";
+  return `${dir} ${abs}／100（${strength}傾向）`;
+}
+
+const LEVEL_EXPLAIN = {
+  高: "傾向明確且作答一致",
+  中: "傾向成形，但仍有搖擺空間",
+  低: "分數貼近門檻或作答傾向搖擺，結果僅供參考",
+};
+
 function renderResult() {
   const r = state.result;
   const meta = ALIGNMENTS[r.alignment];
@@ -194,6 +225,23 @@ function renderResult() {
     grid.appendChild(cell);
   }
 
+  // 高亮玩家落在的區段（門檻 ±20，與後端 NEUTRAL_THRESHOLD 一致）
+  const setZone = (containerId, score) => {
+    const idx = score < -20 ? 0 : score <= 20 ? 1 : 2;
+    [...$(containerId).children].forEach((span, i) =>
+      span.classList.toggle("zone-active", i === idx)
+    );
+  };
+  setZone("zones-law", r.lawScore);
+  setZone("zones-good", r.goodScore);
+
+  $("desc-law").textContent = `秩序軸：${axisText(r.lawScore, "守序", "混亂")}`;
+  $("desc-good").textContent = `道德軸：${axisText(r.goodScore, "善良", "邪惡")}`;
+  $("result-confidence").textContent =
+    r.confidence != null
+      ? `判定信心 ${r.confidence}%（${r.level}）— ${LEVEL_EXPLAIN[r.level] || ""}`
+      : "";
+
   // 分數 -100..100 → 0%..100%
   const toPercent = (score) =>
     `${Math.min(100, Math.max(0, (score + 100) / 2))}%`;
@@ -209,8 +257,9 @@ async function copyResult() {
   let text =
     `我在《陣營羅盤 Alignment Compass》測出的 D&D 陣營是：` +
     `${meta.zh}（${meta.en}）「${meta.title}」！\n\n` +
-    `秩序軸：${r.lawScore >= 0 ? "守序" : "混亂"} ${Math.abs(r.lawScore)}／100\n` +
-    `道德軸：${r.goodScore >= 0 ? "善良" : "邪惡"} ${Math.abs(r.goodScore)}／100`;
+    `秩序軸：${axisText(r.lawScore, "守序", "混亂")}\n` +
+    `道德軸：${axisText(r.goodScore, "善良", "邪惡")}`;
+  if (r.confidence != null) text += `\n判定信心：${r.confidence}%（${r.level}）`;
   if (r.analysis) text += `\n\nDM 的觀察：${r.analysis}`;
   try {
     await navigator.clipboard.writeText(text);

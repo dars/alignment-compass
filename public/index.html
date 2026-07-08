@@ -52,7 +52,10 @@
     <section id="screen-quiz" class="screen">
       <header class="quiz-header">
         <div class="progress-track"><div id="progress-bar"></div></div>
-        <p id="quiz-counter">1 / 12</p>
+        <div class="quiz-meta">
+          <p id="confidence-line" hidden>判定信心 —</p>
+          <p id="quiz-counter">1 / 12</p>
+        </div>
       </header>
       <h2 id="question-text"></h2>
       <div id="options"></div>
@@ -70,13 +73,20 @@
 
       <div class="axes">
         <div class="axis">
-          <div class="axis-labels"><span>混亂</span><span>守序</span></div>
+          <div class="axis-labels zone-labels" id="zones-law">
+            <span>混亂</span><span>中立</span><span>守序</span>
+          </div>
           <div class="axis-track"><div class="axis-marker" id="marker-law"></div></div>
+          <p class="axis-desc" id="desc-law"></p>
         </div>
         <div class="axis">
-          <div class="axis-labels"><span>邪惡</span><span>善良</span></div>
+          <div class="axis-labels zone-labels" id="zones-good">
+            <span>邪惡</span><span>中立</span><span>善良</span>
+          </div>
           <div class="axis-track"><div class="axis-marker" id="marker-good"></div></div>
+          <p class="axis-desc" id="desc-good"></p>
         </div>
+        <p class="axis-desc" id="result-confidence"></p>
       </div>
 
       <div class="result-block" id="block-analysis">

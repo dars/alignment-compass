@@ -17,7 +17,7 @@ try {
 
 // ─── 設定 ─────────────────────────────────────────────────
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434/api/chat";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "gemma4:latest";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen3:8b";
 const QUESTION_COUNT = Number(process.env.QUESTION_COUNT || 12);
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 300_000);
 const PORT = process.env.PORT || 3000;
@@ -31,6 +31,12 @@ const AXIS = {
   LG: [1, 1],  NG: [0, 1],  CG: [-1, 1],
   LN: [1, 0],  TN: [0, 0],  CN: [-1, 0],
   LE: [1, -1], NE: [0, -1], CE: [-1, -1],
+};
+
+const ALIGNMENT_ZH = {
+  LG: "守序善良", NG: "中立善良", CG: "混亂善良",
+  LN: "守序中立", TN: "絕對中立", CN: "混亂中立",
+  LE: "守序邪惡", NE: "中立邪惡", CE: "混亂邪惡",
 };
 
 const THEMES = [
@@ -57,7 +63,7 @@ const QUESTION_SYSTEM = `你是一個 Dungeons & Dragons Nine Alignments Questio
 你的唯一工作，是產生一題可以區分 D&D 九大陣營的情境題。
 
 規則：
-1. 一律使用繁體中文（theme 除外）。
+1. 一律使用繁體中文（台灣用語），絕不可出現簡體字；僅 theme 欄位使用英文。
 2. 背景必須符合 D&D Fantasy 世界。
 3. 題目必須是一個具體事件，而不是人格問題。
 4. 必須提供恰好四個選項。
@@ -93,12 +99,13 @@ const QUESTION_SCHEMA = {
   required: ["theme", "question", "options"],
 };
 
-const NARRATIVE_SYSTEM = `你是資深的 D&D 跑團主持人（DM）。玩家剛完成陣營測驗，系統已依作答統計出其陣營與兩軸分數，你的工作是撰寫個人化的分析與扮演建議。一律使用繁體中文。
+const NARRATIVE_SYSTEM = `你是資深的 D&D 跑團主持人（DM）。玩家剛完成陣營測驗，系統已依作答統計出其陣營與兩軸分數，你的工作是撰寫個人化的分析與扮演建議。一律使用繁體中文（台灣用語），絕不可出現簡體字。
 
 規則：
 - 不要更改或質疑系統的判定結果。
 - analysis：約 150~250 字，引用玩家的具體選擇作為佐證，語氣像資深 DM 對玩家的觀察，可以幽默但要有洞察。
-- roleplayTips：恰好 3 條給這位玩家的跑團扮演建議，要針對其陣營與答題傾向量身打造。`;
+- roleplayTips：恰好 3 條給這位玩家的跑團扮演建議，要針對其陣營與答題傾向量身打造。
+- 提及陣營時一律使用中文名稱（如「混亂中立」），絕不可出現 LG、CN 等英文代碼，也不要逐題條列每個選項的陣營標籤，把觀察自然地寫進文章裡。`;
 
 const NARRATIVE_SCHEMA = {
   type: "object",
@@ -285,39 +292,105 @@ function pickTheme(session) {
 
 // ─── 計分（統計判定，AI 只負責敘事）──────────────────────
 
-function tally(session, choices) {
+// choices 可為部分作答（null = 未答），依題序對應
+function collectPicks(session, choices) {
+  const picks = [];
+  choices.forEach((c, i) => {
+    if (c == null) return;
+    const q = session.questions[i];
+    if (!q) return;
+    const option = q.options.find((o) => o.id === c);
+    if (!option) throw new HttpError(400, `第 ${i + 1} 題的選項代碼不正確`);
+    picks.push({ question: q.question, option });
+  });
+  return picks;
+}
+
+function axesFromPicks(picks) {
   let lawSum = 0;
   let goodSum = 0;
   let weightSum = 0;
-
-  const picks = session.questions.map((q, i) => {
-    const option = q.options.find((o) => o.id === choices[i]);
-    if (!option) throw new HttpError(400, `第 ${i + 1} 題的選項代碼不正確`);
+  for (const { option } of picks) {
     const [law, good] = AXIS[option.alignment];
     const weight = 0.3 + 0.7 * option.confidence; // 低信心仍保留基本權重
     lawSum += law * weight;
     goodSum += good * weight;
     weightSum += weight;
-    return { question: q.question, choice: option.text, alignment: option.alignment };
-  });
+  }
+  if (weightSum === 0) return { lawScore: 0, goodScore: 0 };
+  return {
+    lawScore: Math.round((lawSum / weightSum) * 100),
+    goodScore: Math.round((goodSum / weightSum) * 100),
+  };
+}
 
-  const lawScore = Math.round((lawSum / weightSum) * 100);
-  const goodScore = Math.round((goodSum / weightSum) * 100);
+// 判定信心指數（0~100）：分數扎實度 45% + 作答一致性 30% + 答題進度 25%
+function assessConfidence(session, picks, { lawScore, goodScore }) {
+  const k = picks.length;
+  if (k === 0) return { confidence: 0, level: "低" };
+
+  // 扎實度：兩軸分數距離中立門檻（±20）的餘裕，40 分以上視為滿分
+  const dist = (s) =>
+    Math.abs(s) <= NEUTRAL_THRESHOLD
+      ? NEUTRAL_THRESHOLD - Math.abs(s)
+      : Math.abs(s) - NEUTRAL_THRESHOLD;
+  const solidity =
+    (Math.min(dist(lawScore), 40) / 40 + Math.min(dist(goodScore), 40) / 40) / 2;
+
+  // 一致性：所選選項在兩軸上的標準差（值域 -1/0/1，最大約 1）
+  const sd = (vals) => {
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return Math.sqrt(vals.reduce((a, v) => a + (v - mean) ** 2, 0) / vals.length);
+  };
+  const lawVals = picks.map((p) => AXIS[p.option.alignment][0]);
+  const goodVals = picks.map((p) => AXIS[p.option.alignment][1]);
+  const consistency = Math.max(0, 1 - (sd(lawVals) + sd(goodVals)) / 2);
+
+  // 進度作為整體係數：樣本太少時，再一致的作答也不足以支撐高信心
+  const progress = k / session.total;
+
+  const confidence = Math.round(
+    100 * progress * (0.55 * solidity + 0.45 * consistency)
+  );
+  const level = confidence >= 70 ? "高" : confidence >= 45 ? "中" : "低";
+  return { confidence, level };
+}
+
+function tally(session, choices) {
+  const picks = collectPicks(session, choices);
+  const axes = axesFromPicks(picks);
+  const { lawScore, goodScore } = axes;
 
   const lawChar = lawScore > NEUTRAL_THRESHOLD ? "L" : lawScore < -NEUTRAL_THRESHOLD ? "C" : "N";
   const goodChar = goodScore > NEUTRAL_THRESHOLD ? "G" : goodScore < -NEUTRAL_THRESHOLD ? "E" : "N";
   const alignment = lawChar === "N" && goodChar === "N" ? "TN" : `${lawChar}${goodChar}`;
 
-  return { alignment, lawScore, goodScore, picks };
+  const { confidence, level } = assessConfidence(session, picks, axes);
+
+  return {
+    alignment,
+    lawScore,
+    goodScore,
+    confidence,
+    level,
+    picks: picks.map((p) => ({
+      question: p.question,
+      choice: p.option.text,
+      alignment: p.option.alignment,
+    })),
+  };
 }
 
 async function buildNarrative({ alignment, lawScore, goodScore, picks }) {
   const transcript = picks
-    .map((p, i) => `第 ${i + 1} 題：${p.question}\n玩家的選擇：${p.choice}（傾向 ${p.alignment}）`)
+    .map(
+      (p, i) =>
+        `第 ${i + 1} 題：${p.question}\n玩家的選擇：${p.choice}（此選項傾向：${ALIGNMENT_ZH[p.alignment]}）`
+    )
     .join("\n\n");
 
   const user =
-    `系統判定結果：陣營 ${alignment}，秩序軸 ${lawScore}（-100 極端混亂 ~ 100 極端守序），` +
+    `系統判定結果：陣營「${ALIGNMENT_ZH[alignment]}」，秩序軸 ${lawScore}（-100 極端混亂 ~ 100 極端守序），` +
     `道德軸 ${goodScore}（-100 極端邪惡 ~ 100 極端善良）。\n\n作答紀錄：\n\n${transcript}`;
 
   try {
@@ -443,6 +516,29 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 答題進行中的即時信心指數：只回信心值，不回兩軸方向（避免洩題與引導作答）
+    if (req.method === "POST" && (m = req.url.match(/^\/api\/session\/([\w-]+)\/progress$/))) {
+      const session = getSession(m[1]);
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const choices = body.choices;
+      if (
+        !Array.isArray(choices) ||
+        choices.length > session.questions.length ||
+        !choices.every((c) => c === null || typeof c === "string")
+      ) {
+        return sendJson(res, 400, { error: "choices 格式不正確" });
+      }
+      const picks = collectPicks(session, choices);
+      const axes = axesFromPicks(picks);
+      const { confidence, level } = assessConfidence(session, picks, axes);
+      return sendJson(res, 200, {
+        answered: picks.length,
+        total: session.total,
+        confidence,
+        level,
+      });
+    }
+
     if (req.method === "POST" && (m = req.url.match(/^\/api\/session\/([\w-]+)\/result$/))) {
       const session = getSession(m[1]);
       const body = JSON.parse((await readBody(req)) || "{}");
@@ -462,6 +558,8 @@ const server = http.createServer(async (req, res) => {
         alignment: result.alignment,
         lawScore: result.lawScore,
         goodScore: result.goodScore,
+        confidence: result.confidence,
+        level: result.level,
         analysis: narrative.analysis,
         roleplayTips: narrative.roleplayTips,
       });

@@ -170,12 +170,22 @@ h1 {
   transition: width 0.35s ease;
 }
 
-#quiz-counter {
-  text-align: right;
+.quiz-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
   font-size: 0.8rem;
   color: var(--ink-dim);
-  margin-top: 8px;
   letter-spacing: 0.1em;
+}
+
+#confidence-line { color: var(--gold); }
+
+.axis-desc {
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+  margin-top: 6px;
+  text-align: center;
 }
 
 #question-text {
@@ -253,11 +263,33 @@ h1 {
   margin-bottom: 6px;
 }
 
+/* 三區段軌道：判定門檻在 ±20 → 位置 40% / 60%，中立帶以較亮底色區隔 */
 .axis-track {
   position: relative;
   height: 8px;
-  background: var(--border);
+  background: linear-gradient(
+    90deg,
+    var(--border) 0 calc(40% - 1px),
+    rgba(201, 162, 75, 0.55) calc(40% - 1px) calc(40% + 1px),
+    #4a3d29 calc(40% + 1px) calc(60% - 1px),
+    rgba(201, 162, 75, 0.55) calc(60% - 1px) calc(60% + 1px),
+    var(--border) calc(60% + 1px) 100%
+  );
   border-radius: 4px;
+}
+
+.zone-labels {
+  display: grid;
+  grid-template-columns: 40% 20% 40%;
+}
+
+.zone-labels span:nth-child(1) { justify-self: start; }
+.zone-labels span:nth-child(2) { justify-self: center; }
+.zone-labels span:nth-child(3) { justify-self: end; }
+
+.zone-labels .zone-active {
+  color: var(--gold-bright);
+  font-weight: 700;
 }
 
 .axis-marker {

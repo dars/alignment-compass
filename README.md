@@ -41,7 +41,7 @@ npm start
 | 變數 | 預設值 | 說明 |
 |---|---|---|
 | `OLLAMA_URL` | `http://localhost:11434/api/chat` | Ollama chat 端點 |
-| `OLLAMA_MODEL` | `gemma4:latest` | Ollama 模型名稱 |
+| `OLLAMA_MODEL` | `qwen3:8b` | Ollama 模型名稱 |
 | `QUESTION_COUNT` | `12` | 每場測驗題數 |
 | `LLM_TIMEOUT_MS` | `300000` | 單次 LLM 請求逾時（毫秒） |
 | `PORT` | `3000` | 網站埠號 |
