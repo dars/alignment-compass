@@ -1,0 +1,240 @@
+// 陣營羅盤前端：逐題向後端取題（背景預取下一題），作答完成後由後端統計陣營
+
+const state = {
+  sessionId: null,
+  total: 0,
+  questions: [],   // [{index, question, options:[{id,text}]}]
+  answers: [],     // 已選選項 id，index 對應題號
+  current: 0,
+  result: null,
+  retryAction: null,
+};
+
+let inflight = null; // 進行中的取題請求（single-flight）
+
+const $ = (id) => document.getElementById(id);
+
+const screens = ["start", "loading", "quiz", "result", "error"];
+function show(name) {
+  for (const s of screens) {
+    $(`screen-${s}`).classList.toggle("active", s === name);
+  }
+  window.scrollTo({ top: 0 });
+}
+
+function showLoading(text, hint) {
+  $("loading-text").textContent = text;
+  $("loading-hint").textContent = hint || "";
+  show("loading");
+}
+
+// ─── API ──────────────────────────────────────────────────
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `伺服器錯誤（${res.status}）`);
+  return data;
+}
+
+function fetchNextQuestion() {
+  if (!inflight) {
+    inflight = api(`/api/session/${state.sessionId}/question`)
+      .then((q) => {
+        state.questions.push(q);
+        inflight = null;
+        return q;
+      })
+      .catch((err) => {
+        inflight = null;
+        throw err;
+      });
+  }
+  return inflight;
+}
+
+async function ensureQuestion(i) {
+  while (state.questions.length <= i) {
+    await fetchNextQuestion();
+  }
+}
+
+// 背景預取下一題；失敗不吵，輪到該題時 ensureQuestion 會重試
+function prefetch() {
+  if (state.questions.length < state.total && !inflight) {
+    fetchNextQuestion().catch(() => {});
+  }
+}
+
+// ─── 流程 ─────────────────────────────────────────────────
+
+async function startQuiz() {
+  showLoading("正在擲骰生成第一題……", "AI 每次都會即時編寫全新的冒險情境");
+  try {
+    const session = await api("/api/session");
+    state.sessionId = session.id;
+    state.total = session.total;
+    state.questions = [];
+    state.answers = new Array(session.total).fill(null);
+    state.current = 0;
+    await ensureQuestion(0);
+    renderQuestion();
+    show("quiz");
+    prefetch();
+  } catch (err) {
+    showError(err.message, startQuiz);
+  }
+}
+
+function renderQuestion() {
+  const q = state.questions[state.current];
+
+  $("quiz-counter").textContent = `${state.current + 1} / ${state.total}`;
+  $("progress-bar").style.width = `${(state.current / state.total) * 100}%`;
+  $("question-text").textContent = q.question;
+  $("btn-back").hidden = state.current === 0;
+
+  const container = $("options");
+  container.innerHTML = "";
+  for (const option of q.options) {
+    const btn = document.createElement("button");
+    btn.className = "option";
+    btn.textContent = option.text;
+    btn.addEventListener("click", () => choose(option.id));
+    container.appendChild(btn);
+  }
+}
+
+async function choose(optionId) {
+  state.answers[state.current] = optionId;
+  const next = state.current + 1;
+
+  if (next >= state.total) return submitAnswers();
+
+  if (state.questions.length > next) {
+    state.current = next;
+    renderQuestion();
+    show("quiz");
+    prefetch();
+    return;
+  }
+
+  // 下一題還沒生好，顯示等待畫面
+  showLoading("DM 正在構思下一題……", `第 ${next + 1} 題生成中`);
+  try {
+    await ensureQuestion(next);
+    state.current = next;
+    renderQuestion();
+    show("quiz");
+    prefetch();
+  } catch (err) {
+    showError(err.message, () => choose(optionId));
+  }
+}
+
+function goBack() {
+  if (state.current > 0) {
+    state.current -= 1;
+    renderQuestion();
+  }
+}
+
+async function submitAnswers() {
+  showLoading("正在推演你的靈魂座標……", "統計作答並請 DM 撰寫觀察報告");
+  try {
+    const result = await api(`/api/session/${state.sessionId}/result`, {
+      choices: state.answers,
+    });
+    if (!ALIGNMENTS[result.alignment]) {
+      throw new Error("回傳的陣營代碼不正確");
+    }
+    state.result = result;
+    renderResult();
+    show("result");
+  } catch (err) {
+    showError(err.message, submitAnswers);
+  }
+}
+
+// ─── 結果渲染 ─────────────────────────────────────────────
+
+function renderResult() {
+  const r = state.result;
+  const meta = ALIGNMENTS[r.alignment];
+
+  $("result-name").textContent = meta.zh;
+  $("result-en").textContent = meta.en;
+  $("result-title").textContent = `—— ${meta.title} ——`;
+  $("result-examples").textContent = meta.examples;
+
+  // 敘事生成失敗時隱藏對應區塊，不影響判定結果
+  $("block-analysis").hidden = !r.analysis;
+  $("result-analysis").textContent = r.analysis || "";
+
+  const hasTips = Array.isArray(r.roleplayTips) && r.roleplayTips.length > 0;
+  $("block-tips").hidden = !hasTips;
+  const tips = $("result-tips");
+  tips.innerHTML = "";
+  for (const tip of r.roleplayTips || []) {
+    const li = document.createElement("li");
+    li.textContent = tip;
+    tips.appendChild(li);
+  }
+
+  const grid = $("result-grid");
+  grid.innerHTML = "";
+  for (const key of GRID_ORDER) {
+    const cell = document.createElement("div");
+    cell.className = "cell" + (key === r.alignment ? " hit" : "");
+    cell.textContent = ALIGNMENTS[key].zh;
+    grid.appendChild(cell);
+  }
+
+  // 分數 -100..100 → 0%..100%
+  const toPercent = (score) =>
+    `${Math.min(100, Math.max(0, (score + 100) / 2))}%`;
+  requestAnimationFrame(() => {
+    $("marker-law").style.left = toPercent(r.lawScore);
+    $("marker-good").style.left = toPercent(r.goodScore);
+  });
+}
+
+async function copyResult() {
+  const r = state.result;
+  const meta = ALIGNMENTS[r.alignment];
+  let text =
+    `我在《陣營羅盤 Alignment Compass》測出的 D&D 陣營是：` +
+    `${meta.zh}（${meta.en}）「${meta.title}」！\n\n` +
+    `秩序軸：${r.lawScore >= 0 ? "守序" : "混亂"} ${Math.abs(r.lawScore)}／100\n` +
+    `道德軸：${r.goodScore >= 0 ? "善良" : "邪惡"} ${Math.abs(r.goodScore)}／100`;
+  if (r.analysis) text += `\n\nDM 的觀察：${r.analysis}`;
+  try {
+    await navigator.clipboard.writeText(text);
+    $("btn-copy").textContent = "已複製 ✓";
+    setTimeout(() => ($("btn-copy").textContent = "複製結果"), 2000);
+  } catch {
+    $("btn-copy").textContent = "複製失敗";
+  }
+}
+
+// ─── 錯誤 ─────────────────────────────────────────────────
+
+function showError(message, retryAction) {
+  $("error-message").textContent = message;
+  state.retryAction = retryAction;
+  show("error");
+}
+
+// ─── 綁定 ─────────────────────────────────────────────────
+
+$("btn-start").addEventListener("click", startQuiz);
+$("btn-back").addEventListener("click", goBack);
+$("btn-restart").addEventListener("click", startQuiz);
+$("btn-copy").addEventListener("click", copyResult);
+$("btn-retry").addEventListener("click", () => {
+  if (state.retryAction) state.retryAction();
+});

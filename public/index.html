@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>陣營羅盤 Alignment Compass — D&D 九大陣營測驗</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="app">
+
+    <!-- 開始畫面 -->
+    <section id="screen-start" class="screen active">
+      <img src="logo.jpg" alt="陣營羅盤 Alignment Compass" class="logo" />
+      <h1 class="sr-only">陣營羅盤 Alignment Compass</h1>
+      <p class="intro">
+        在踏入地城之前，先認識你自己。<br />
+        回答由 AI 即時生成的 12 道冒險情境題，<br />
+        看看你的靈魂落在 D&amp;D 九大陣營的哪一格。
+      </p>
+      <div class="grid-preview" aria-hidden="true">
+        <span>守序善良</span><span>中立善良</span><span>混亂善良</span>
+        <span>守序中立</span><span>絕對中立</span><span>混亂中立</span>
+        <span>守序邪惡</span><span>中立邪惡</span><span>混亂邪惡</span>
+      </div>
+      <button id="btn-start" class="btn-primary">擲骰，開始測驗</button>
+      <p class="hint">每次測驗的題目都由 AI 重新生成，不會重複</p>
+    </section>
+
+    <!-- 載入畫面 -->
+    <section id="screen-loading" class="screen">
+      <div class="dice" aria-hidden="true">
+        <svg viewBox="0 0 100 100" width="88" height="88">
+          <polygon points="50,4 93,28 93,72 50,96 7,72 7,28" fill="none" stroke="currentColor" stroke-width="3"/>
+          <polygon points="50,4 78,38 22,38" fill="none" stroke="currentColor" stroke-width="2"/>
+          <polygon points="22,38 78,38 50,80" fill="none" stroke="currentColor" stroke-width="2"/>
+          <line x1="50" y1="4" x2="50" y2="80" stroke="currentColor" stroke-width="0" />
+          <line x1="22" y1="38" x2="7" y2="28" stroke="currentColor" stroke-width="2"/>
+          <line x1="78" y1="38" x2="93" y2="28" stroke="currentColor" stroke-width="2"/>
+          <line x1="50" y1="80" x2="50" y2="96" stroke="currentColor" stroke-width="2"/>
+          <text x="50" y="62" text-anchor="middle" font-size="26" fill="currentColor" font-family="Georgia, serif">20</text>
+        </svg>
+      </div>
+      <p id="loading-text">正在擲骰生成題目……</p>
+      <p class="hint" id="loading-hint"></p>
+    </section>
+
+    <!-- 答題畫面 -->
+    <section id="screen-quiz" class="screen">
+      <header class="quiz-header">
+        <div class="progress-track"><div id="progress-bar"></div></div>
+        <p id="quiz-counter">1 / 12</p>
+      </header>
+      <h2 id="question-text"></h2>
+      <div id="options"></div>
+      <button id="btn-back" class="btn-ghost" hidden>← 上一題</button>
+    </section>
+
+    <!-- 結果畫面 -->
+    <section id="screen-result" class="screen">
+      <p class="result-eyebrow">你的陣營是</p>
+      <h1 id="result-name"></h1>
+      <p id="result-en" class="subtitle"></p>
+      <p id="result-title" class="result-archetype"></p>
+
+      <div id="result-grid" class="alignment-grid"></div>
+
+      <div class="axes">
+        <div class="axis">
+          <div class="axis-labels"><span>混亂</span><span>守序</span></div>
+          <div class="axis-track"><div class="axis-marker" id="marker-law"></div></div>
+        </div>
+        <div class="axis">
+          <div class="axis-labels"><span>邪惡</span><span>善良</span></div>
+          <div class="axis-track"><div class="axis-marker" id="marker-good"></div></div>
+        </div>
+      </div>
+
+      <div class="result-block" id="block-analysis">
+        <h3>DM 的觀察</h3>
+        <p id="result-analysis"></p>
+      </div>
+
+      <div class="result-block" id="block-tips">
+        <h3>跑團扮演建議</h3>
+        <ul id="result-tips"></ul>
+      </div>
+
+      <div class="result-block">
+        <h3>同陣營的知名角色</h3>
+        <p id="result-examples"></p>
+      </div>
+
+      <div class="result-actions">
+        <button id="btn-copy" class="btn-ghost">複製結果</button>
+        <button id="btn-restart" class="btn-primary">再測一次</button>
+      </div>
+    </section>
+
+    <!-- 錯誤畫面 -->
+    <section id="screen-error" class="screen">
+      <div class="compass-mark">☠</div>
+      <h2>豁免檢定失敗</h2>
+      <p id="error-message" class="intro"></p>
+      <button id="btn-retry" class="btn-primary">再試一次</button>
+    </section>
+
+  </main>
+
+  <script src="alignments.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

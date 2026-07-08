@@ -1,0 +1,12 @@
+{
+  "name": "alignment-compass",
+  "version": "1.0.0",
+  "description": "D&D 九大陣營測驗 — AI 即時出題與分析",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
