@@ -257,29 +257,32 @@ h1 {
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
 }
 
-/* hover 時浮現的星芒標記，像被 DM 點名 */
-.option::before {
-  content: "✦";
-  position: absolute;
-  left: 9px;
-  top: 50%;
-  margin-top: -0.75em;
-  font-size: 0.7rem;
-  color: var(--gold-bright);
-  opacity: 0;
-  transform: translateX(-4px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
 .option:hover {
   border-color: var(--gold);
   background: #261e15;
   transform: translateX(3px);
 }
 
-.option:hover::before {
-  opacity: 1;
-  transform: none;
+/* hover 星芒標記：只在真正有滑鼠的裝置顯示，
+   避免觸控裝置 sticky hover 讓 ✦ 殘留、被誤讀成選項提示 */
+@media (hover: hover) and (pointer: fine) {
+  .option::before {
+    content: "✦";
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    margin-top: -0.75em;
+    font-size: 0.7rem;
+    color: var(--gold-bright);
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+
+  .option:hover::before {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ─── 結果 ─── */
