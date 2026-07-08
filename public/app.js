@@ -475,6 +475,10 @@ function renderResult() {
   $("result-title").textContent = `—— ${meta.title} ——`;
   $("result-examples").textContent = meta.examples;
 
+  // 重置分享圖卡（新結果需重新產生）
+  $("card-preview").hidden = true;
+  $("btn-card").textContent = "產生分享圖卡";
+
   // 敘事由 /api/narrative 非同步載入：先顯示撰寫中狀態
   $("block-analysis").hidden = false;
   $("result-analysis").textContent = "";
@@ -600,6 +604,247 @@ async function copyResult() {
   }
 }
 
+// ─── 分享圖卡（Canvas 繪製，1080×1350）──────────────────
+
+const CARD = {
+  W: 1080,
+  H: 1350,
+  bg: "#171210",
+  bgHi: "#2a2015",
+  card: "#1e1813",
+  ink: "#e8ddc8",
+  dim: "#9c8e74",
+  gold: "#c9a24b",
+  goldBright: "#e6c26e",
+  border: "#3a2f22",
+  serif: '"Songti TC", "Noto Serif TC", "Iowan Old Style", Georgia, serif',
+};
+
+function loadLogo() {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null); // 載入失敗就不畫 logo
+    img.src = "logo.jpg";
+  });
+}
+
+// 把方形 logo 做放射狀淡出（同網站 CSS mask 的效果）
+function fadedLogo(img, size) {
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const x = c.getContext("2d");
+  x.drawImage(img, 0, 0, size, size);
+  const g = x.createRadialGradient(size / 2, size / 2, size * 0.3, size / 2, size / 2, size / 2);
+  g.addColorStop(0, "rgba(0,0,0,1)");
+  g.addColorStop(0.72, "rgba(0,0,0,1)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  x.globalCompositeOperation = "destination-in";
+  x.fillStyle = g;
+  x.fillRect(0, 0, size, size);
+  return c;
+}
+
+function cardText(ctx, text, x, y, { size, color, weight = 400, spacing = 0, align = "center" }) {
+  ctx.font = `${weight} ${size}px ${CARD.serif}`;
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = "middle";
+  if (spacing > 0) ctx.letterSpacing = `${spacing}px`;
+  ctx.fillText(text, x, y);
+  ctx.letterSpacing = "0px";
+}
+
+function drawCardAxis(ctx, y, negLabel, posLabel, score, descText) {
+  const barX = 220;
+  const barW = CARD.W - barX * 2;
+  const barH = 10;
+
+  cardText(ctx, negLabel, barX - 24, y, { size: 30, color: CARD.dim, align: "right" });
+  cardText(ctx, posLabel, barX + barW + 24, y, { size: 30, color: CARD.dim, align: "left" });
+
+  // 三區段軌道（門檻 ±20 → 40%/60%）
+  ctx.fillStyle = CARD.border;
+  ctx.beginPath();
+  ctx.roundRect(barX, y - barH / 2, barW, barH, barH / 2);
+  ctx.fill();
+  ctx.fillStyle = "#4a3d29";
+  ctx.fillRect(barX + barW * 0.4, y - barH / 2, barW * 0.2, barH);
+  ctx.fillStyle = "rgba(201,162,75,0.55)";
+  ctx.fillRect(barX + barW * 0.4 - 1, y - barH / 2, 2, barH);
+  ctx.fillRect(barX + barW * 0.6 - 1, y - barH / 2, 2, barH);
+
+  // 分數標記
+  const px = barX + barW * Math.min(1, Math.max(0, (score + 100) / 200));
+  ctx.beginPath();
+  ctx.arc(px, y, 13, 0, Math.PI * 2);
+  ctx.fillStyle = CARD.goldBright;
+  ctx.shadowColor = "rgba(230,194,110,0.6)";
+  ctx.shadowBlur = 14;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = CARD.bg;
+  ctx.stroke();
+
+  cardText(ctx, descText, CARD.W / 2, y + 40, { size: 26, color: CARD.dim });
+}
+
+async function makeShareCard() {
+  const r = state.result;
+  const meta = ALIGNMENTS[r.alignment];
+  const canvas = document.createElement("canvas");
+  canvas.width = CARD.W;
+  canvas.height = CARD.H;
+  const ctx = canvas.getContext("2d");
+  await document.fonts.ready;
+
+  // 背景與頂部光暈
+  ctx.fillStyle = CARD.bg;
+  ctx.fillRect(0, 0, CARD.W, CARD.H);
+  const glow = ctx.createRadialGradient(CARD.W / 2, -80, 60, CARD.W / 2, -80, 700);
+  glow.addColorStop(0, CARD.bgHi);
+  glow.addColorStop(1, "rgba(42,32,21,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, CARD.W, 760);
+
+  // 外框與角落飾線
+  ctx.strokeStyle = "rgba(201,162,75,0.35)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(28, 28, CARD.W - 56, CARD.H - 56);
+  ctx.strokeStyle = "rgba(201,162,75,0.7)";
+  ctx.lineWidth = 3;
+  for (const [cx, cy, dx, dy] of [
+    [44, 44, 1, 1], [CARD.W - 44, 44, -1, 1],
+    [44, CARD.H - 44, 1, -1], [CARD.W - 44, CARD.H - 44, -1, -1],
+  ]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + dx * 26, cy);
+    ctx.lineTo(cx, cy);
+    ctx.lineTo(cx, cy + dy * 26);
+    ctx.stroke();
+  }
+
+  // Logo（放射淡出）
+  const logo = await loadLogo();
+  if (logo) ctx.drawImage(fadedLogo(logo, 230), CARD.W / 2 - 115, 62);
+
+  cardText(ctx, "陣營羅盤 ALIGNMENT COMPASS", CARD.W / 2, 330, {
+    size: 26, color: CARD.dim, spacing: 6,
+  });
+  cardText(ctx, "我的陣營是", CARD.W / 2, 396, { size: 30, color: CARD.dim });
+  cardText(ctx, meta.zh, CARD.W / 2, 494, { size: 104, color: CARD.goldBright, weight: 700 });
+  cardText(ctx, meta.en, CARD.W / 2, 572, { size: 34, color: CARD.dim, spacing: 3 });
+  cardText(ctx, `—— ${meta.title} ——`, CARD.W / 2, 626, { size: 34, color: CARD.gold });
+
+  // 3×3 陣營表
+  const cellW = 260;
+  const cellH = 106;
+  const gap = 14;
+  const gridX = (CARD.W - cellW * 3 - gap * 2) / 2;
+  const gridY = 688;
+  GRID_ORDER.forEach((key, i) => {
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    const x = gridX + col * (cellW + gap);
+    const y = gridY + row * (cellH + gap);
+    const hit = key === r.alignment;
+    const near = r.secondary && key === r.secondary.alignment;
+
+    if (hit) {
+      const grad = ctx.createLinearGradient(0, y, 0, y + cellH);
+      grad.addColorStop(0, "#3a2d17");
+      grad.addColorStop(1, "#2b2010");
+      ctx.fillStyle = grad;
+      ctx.shadowColor = "rgba(201,162,75,0.5)";
+      ctx.shadowBlur = 22;
+    } else {
+      ctx.fillStyle = CARD.card;
+      ctx.shadowBlur = 0;
+    }
+    ctx.beginPath();
+    ctx.roundRect(x, y, cellW, cellH, 8);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = hit ? 3 : 1.5;
+    ctx.strokeStyle = hit
+      ? CARD.goldBright
+      : near
+        ? "rgba(201,162,75,0.5)"
+        : CARD.border;
+    ctx.stroke();
+
+    cardText(ctx, ALIGNMENTS[key].zh, x + cellW / 2, y + cellH / 2 + 2, {
+      size: hit ? 40 : 32,
+      color: hit ? CARD.goldBright : near ? CARD.gold : CARD.dim,
+      weight: hit ? 700 : 400,
+    });
+  });
+
+  // 兩軸
+  drawCardAxis(ctx, 1112, "混亂", "守序", r.lawScore, `秩序軸：${axisText(r.lawScore, "守序", "混亂")}`);
+  drawCardAxis(ctx, 1204, "邪惡", "善良", r.goodScore, `道德軸：${axisText(r.goodScore, "善良", "邪惡")}`);
+
+  // 信心與次要陣營
+  let infoLine = `判定信心 ${r.confidence}%（${r.level}）`;
+  const secMeta = r.secondary && ALIGNMENTS[r.secondary.alignment];
+  if (secMeta) infoLine += `　・　一步之遙：${secMeta.zh}`;
+  cardText(ctx, infoLine, CARD.W / 2, 1266, { size: 26, color: CARD.dim });
+
+  cardText(ctx, `來測你的 D&D 陣營 → ${location.host}`, CARD.W / 2, 1310, {
+    size: 27, color: CARD.gold,
+  });
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("圖卡產生失敗"))), "image/png");
+  });
+}
+
+let cardObjectUrl = null;
+
+async function generateCard() {
+  const btn = $("btn-card");
+  btn.disabled = true;
+  btn.textContent = "繪製中…";
+  try {
+    const blob = await makeShareCard();
+
+    // 預覽
+    if (cardObjectUrl) URL.revokeObjectURL(cardObjectUrl);
+    cardObjectUrl = URL.createObjectURL(blob);
+    $("card-img").src = cardObjectUrl;
+    $("card-preview").hidden = false;
+
+    const file = new File([blob], "alignment-compass.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      $("card-hint").textContent = "";
+      try {
+        await navigator.share({ files: [file], title: "陣營羅盤 Alignment Compass" });
+      } catch (err) {
+        /* 使用者取消分享沒關係，預覽已顯示 */
+      }
+    } else {
+      // 桌機：自動下載
+      const a = document.createElement("a");
+      a.href = cardObjectUrl;
+      a.download = "alignment-compass.png";
+      a.click();
+      $("card-hint").textContent = "圖卡已下載，也可以長按/右鍵上方預覽另存";
+    }
+    fetch("/api/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: "share_card" }),
+      keepalive: true,
+    }).catch(() => {});
+    btn.textContent = "重新產生圖卡";
+  } catch (err) {
+    btn.textContent = "產生失敗，再試一次";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ─── 錯誤 ─────────────────────────────────────────────────
 
 function showError(message, retryAction) {
@@ -638,6 +883,7 @@ if (loadProgress()) $("btn-continue").hidden = false;
 $("btn-copy").textContent = SHARE_LABEL;
 $("btn-restart").addEventListener("click", startQuiz);
 $("btn-copy").addEventListener("click", copyResult);
+$("btn-card").addEventListener("click", generateCard);
 $("btn-retry").addEventListener("click", () => {
   if (state.retryAction) state.retryAction();
 });

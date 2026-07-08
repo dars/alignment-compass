@@ -512,6 +512,18 @@ h1 {
   gap: 14px;
   justify-content: center;
   margin-top: 28px;
+  flex-wrap: wrap;
+}
+
+.card-preview {
+  margin-top: 24px;
+}
+
+.card-preview img {
+  max-width: min(360px, 88%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
 
 /* ─── 錯誤 ─── */
