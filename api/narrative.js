@@ -1,16 +1,14 @@
 import {
   axesFromPicks,
-  assessConfidence,
   classify,
-  nearestSecondary,
-  QUESTION_COUNT,
+  buildNarrative,
   MAX_QUESTIONS,
 } from "../lib/quiz.js";
 import { resolveAnswers } from "../lib/answers.js";
 import { readJson, sendJson, handleError, HttpError } from "../lib/http.js";
 
-// 純統計結算（<0.1 秒）：陣營、兩軸分數、信心、次要陣營、加測資訊。
-// 個人化敘事拆到 /api/narrative 非同步取得，多人同時結算不需排隊。
+// 個人化敘事（DM 的觀察＋扮演建議）：LLM 生成、較慢（~20-40 秒），
+// 由前端在結果顯示後非同步請求；失敗只影響敘事區塊，不影響判定
 export default async function handler(req, res) {
   try {
     if (req.method !== "POST") throw new HttpError(405, "Method not allowed");
@@ -21,21 +19,19 @@ export default async function handler(req, res) {
 
     const axes = axesFromPicks(picks);
     const alignment = classify(axes);
-    const { confidence, level } = assessConfidence(picks, QUESTION_COUNT, axes);
-    const secondary = nearestSecondary(axes);
-    // 信心偏低且還有加測額度時，提供自願加測
-    const extendRemaining = MAX_QUESTIONS - picks.length;
-    const extend = level === "低" && extendRemaining > 0 ? { count: extendRemaining } : null;
 
-    sendJson(res, 200, {
+    const narrative = await buildNarrative({
       alignment,
       lawScore: axes.lawScore,
       goodScore: axes.goodScore,
-      confidence,
-      level,
-      secondary,
-      extend,
+      picks: picks.map((p) => ({
+        question: p.question,
+        choice: p.choice,
+        alignment: p.option.alignment,
+      })),
     });
+
+    sendJson(res, 200, narrative);
   } catch (err) {
     handleError(res, err);
   }

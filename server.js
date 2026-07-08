@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import questionHandler from "./api/question.js";
 import progressHandler from "./api/progress.js";
 import resultHandler from "./api/result.js";
+import narrativeHandler from "./api/narrative.js";
 import refillHandler from "./api/refill.js";
 import { OLLAMA_URL, OLLAMA_MODEL, QUESTION_COUNT } from "./lib/config.js";
 import { kvEnabled } from "./lib/pool.js";
@@ -21,6 +22,7 @@ const ROUTES = {
   "/api/question": questionHandler,
   "/api/progress": progressHandler,
   "/api/result": resultHandler,
+  "/api/narrative": narrativeHandler,
   "/api/refill": refillHandler,
 };
 

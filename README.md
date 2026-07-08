@@ -77,7 +77,8 @@ curl -X POST "https://你的網域/api/refill?key=REFILL_KEY"
 | `/api/question` | POST | 傳入 `{prev: [先前題目的 token]}`，回傳 `{index, total, question, options: [{id, text}], token}`；優先取自題目池 |
 | `/api/refill` | POST | `?key=REFILL_KEY`，補充題目池（單次最多 2 題），回傳 `{pool, added, target}` |
 | `/api/progress` | POST | 傳入 `{answers: [{token, choice}]}`（已答部分），回傳 `{answered, total, confidence, level}` |
-| `/api/result` | POST | 傳入 `{answers: [{token, choice}]}`（全部），回傳 `{alignment, lawScore, goodScore, confidence, level, analysis, roleplayTips}` |
+| `/api/result` | POST | 純統計結算（即時），回傳 `{alignment, lawScore, goodScore, confidence, level, secondary, extend}` |
+| `/api/narrative` | POST | 個人化敘事（LLM，~20-40 秒），回傳 `{analysis, roleplayTips}`；前端於結果顯示後非同步請求 |
 
 `alignment` 為九大陣營代碼：`LG`/`NG`/`CG`/`LN`/`TN`/`CN`/`LE`/`NE`/`CE`（True Neutral 用 `TN`）。
 

@@ -7,6 +7,7 @@ const state = {
   answers: [],     // 已選選項 id，index 對應題號
   current: 0,
   result: null,
+  resultSeq: 0,    // 結算序號：加測重算後用來忽略過期的敘事回應
   retryAction: null,
   extendBase: 0,   // 加測起點（0 = 未加測）
   extended: false, // 已用過加測
@@ -193,7 +194,7 @@ function goBack() {
 }
 
 async function submitAnswers() {
-  showLoading("正在推演你的靈魂座標……", "統計作答並請 DM 撰寫觀察報告");
+  showLoading("正在推演你的靈魂座標……", "統計你的作答");
   try {
     const result = await api("/api/result", { answers: answeredPayload() });
     if (!ALIGNMENTS[result.alignment]) {
@@ -202,9 +203,54 @@ async function submitAnswers() {
     state.result = result;
     renderResult();
     show("result");
+    requestNarrative(); // 敘事非同步載入，不擋結果顯示
   } catch (err) {
     showError(err.message, submitAnswers);
   }
+}
+
+// ─── 敘事（非同步）──────────────────────────────────────
+
+function setNarrativeStatus(mode) {
+  const status = $("narrative-status");
+  const retry = $("btn-narrative-retry");
+  if (mode === "writing") {
+    status.hidden = false;
+    status.textContent = "🖋 DM 正在撰寫你的觀察報告……";
+    retry.hidden = true;
+  } else if (mode === "failed") {
+    status.hidden = false;
+    status.textContent = "DM 正在忙別桌，觀察報告晚點再來拿。";
+    retry.hidden = false;
+  } else {
+    status.hidden = true;
+    retry.hidden = true;
+  }
+}
+
+function requestNarrative() {
+  const seq = ++state.resultSeq;
+  setNarrativeStatus("writing");
+  api("/api/narrative", { answers: answeredPayload() })
+    .then((n) => {
+      if (seq !== state.resultSeq) return; // 已有更新的結算，忽略舊回應
+      state.result.analysis = n.analysis;
+      state.result.roleplayTips = n.roleplayTips || [];
+      $("result-analysis").textContent = n.analysis;
+      setNarrativeStatus("done");
+      const tips = $("result-tips");
+      tips.innerHTML = "";
+      for (const tip of state.result.roleplayTips) {
+        const li = document.createElement("li");
+        li.textContent = tip;
+        tips.appendChild(li);
+      }
+      $("block-tips").hidden = state.result.roleplayTips.length === 0;
+    })
+    .catch(() => {
+      if (seq !== state.resultSeq) return;
+      setNarrativeStatus("failed");
+    });
 }
 
 // ─── 結果渲染 ─────────────────────────────────────────────
@@ -235,19 +281,11 @@ function renderResult() {
   $("result-title").textContent = `—— ${meta.title} ——`;
   $("result-examples").textContent = meta.examples;
 
-  // 敘事生成失敗時隱藏對應區塊，不影響判定結果
-  $("block-analysis").hidden = !r.analysis;
-  $("result-analysis").textContent = r.analysis || "";
-
-  const hasTips = Array.isArray(r.roleplayTips) && r.roleplayTips.length > 0;
-  $("block-tips").hidden = !hasTips;
-  const tips = $("result-tips");
-  tips.innerHTML = "";
-  for (const tip of r.roleplayTips || []) {
-    const li = document.createElement("li");
-    li.textContent = tip;
-    tips.appendChild(li);
-  }
+  // 敘事由 /api/narrative 非同步載入：先顯示撰寫中狀態
+  $("block-analysis").hidden = false;
+  $("result-analysis").textContent = "";
+  $("block-tips").hidden = true;
+  $("result-tips").innerHTML = "";
 
   const grid = $("result-grid");
   grid.innerHTML = "";
@@ -331,6 +369,7 @@ function showError(message, retryAction) {
 $("btn-start").addEventListener("click", startQuiz);
 $("btn-back").addEventListener("click", goBack);
 $("btn-extend").addEventListener("click", extendQuiz);
+$("btn-narrative-retry").addEventListener("click", requestNarrative);
 $("btn-restart").addEventListener("click", startQuiz);
 $("btn-copy").addEventListener("click", copyResult);
 $("btn-retry").addEventListener("click", () => {
