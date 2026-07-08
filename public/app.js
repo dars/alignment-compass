@@ -629,12 +629,14 @@ function loadLogo() {
   });
 }
 
-// 把方形 logo 做放射狀淡出（同網站 CSS mask 的效果）
+// 只取 logo 的羅盤本體（原圖下方帶文字，避免與卡片標題重複），並做放射狀淡出
 function fadedLogo(img, size) {
   const c = document.createElement("canvas");
   c.width = c.height = size;
   const x = c.getContext("2d");
-  x.drawImage(img, 0, 0, size, size);
+  // 原圖 1254×1254：羅盤約位於 (207, 50) 起的 840×840 區域
+  const s = img.naturalWidth / 1254;
+  x.drawImage(img, 207 * s, 50 * s, 840 * s, 840 * s, 0, 0, size, size);
   const g = x.createRadialGradient(size / 2, size / 2, size * 0.3, size / 2, size / 2, size / 2);
   g.addColorStop(0, "rgba(0,0,0,1)");
   g.addColorStop(0.72, "rgba(0,0,0,1)");
