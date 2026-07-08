@@ -29,6 +29,14 @@ function showLoading(text, hint) {
   $("loading-text").textContent = text;
   $("loading-hint").textContent = hint || "";
   show("loading");
+  // display:none → block 切換後，瀏覽器偶爾不會重啟 CSS 動畫：
+  // 強制 reflow 重新觸發，確保 d20 一定在轉
+  const dice = document.querySelector("#screen-loading .dice");
+  if (dice) {
+    dice.style.animation = "none";
+    void dice.offsetWidth; // 強制 reflow
+    dice.style.animation = "";
+  }
 }
 
 // ─── 已看過的題目（此裝置）────────────────────────────────

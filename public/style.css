@@ -143,6 +143,7 @@ h1 {
   display: inline-block;
   animation: spin 2.4s linear infinite;
   margin-bottom: 24px;
+  will-change: transform; /* 提升到合成層，主執行緒忙碌時動畫不受影響 */
 }
 
 @keyframes spin {
