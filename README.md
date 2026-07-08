@@ -6,52 +6,72 @@ D&D 九大陣營個性測驗網站。題目由本地 LLM（Ollama）逐題即時
 
 ```
 瀏覽器（public/ 靜態頁面）
-   │  POST /api/session                  ← 建立測驗場次
-   │  POST /api/session/:id/question     ← 逐題生成（前端背景預取下一題）
-   │  POST /api/session/:id/result       ← 送出作答，統計 + AI 敘事
+   │  POST /api/question     ← 逐題生成（前端背景預取下一題）
+   │  POST /api/progress     ← 答題中的即時判定信心指數
+   │  POST /api/result       ← 送出作答，統計 + AI 敘事
    ▼
-server.js（Node.js，零依賴）
+api/*.js（serverless functions；本機由 server.js 轉接）
    ▼
 Ollama /api/chat（structured outputs，JSON Schema）
 ```
 
 設計重點：
 
-- **逐題生成**：單題等待時間短（gemma4:e2b 約 8~12 秒），前端在玩家作答時背景預取下一題，體感幾乎無等待。
-- **選項預標陣營**：出題時每個選項帶 `alignment`（九大陣營代碼）與 `confidence`（0~1）。這些標注只留在 server 端 session，不會送到瀏覽器，玩家無法從 DevTools 看到答案。
-- **統計判定，AI 敘事**：陣營代碼映射為 (law, good) 座標，依 confidence 加權平均得兩軸分數（-100~100，|分數| ≤ 20 為中立帶），直接得出陣營；再用低溫度呼叫請模型撰寫分析與扮演建議。敘事失敗不影響判定結果。
-- **server 端驗證**：四個選項陣營必須相異（重試最多 3 次，末次放寬為至少 3 種）；出題 prompt 會帶入已出過的主題與情境摘要避免重複；並清洗小模型常見的編號前綴等雜訊。
+- **無狀態（serverless-ready）**：沒有 server session。每題的隱藏資料（選項的 `alignment`／`confidence`）以 AES-256-GCM 加密成 token 交由前端持有、答題時原樣帶回；GCM 認證標籤防竄改，題號防重複，token 兩小時過期。玩家在 DevTools 只看得到密文。
+- **逐題生成**：單題等待時間短（qwen3:8b 約 15~21 秒），前端在玩家作答時背景預取下一題。
+- **統計判定，AI 敘事**：陣營代碼映射 (law, good) 座標、confidence 加權平均得兩軸分數（±100，|分數| ≤ 20 為中立帶）；判定信心指數 = 進度 ×（55% 分數扎實度 + 45% 作答一致性）。敘事失敗不影響判定結果。
+- **多層輸出防護**：選項陣營相異驗證（重試最多 4 次）、控制符／選項列表／schema 欄位名／陣營標注洩漏的偵測與清洗、跨題主題與情境去重。
 
-## 啟動
+## 本機開發
 
 需要 Node.js 18+ 與一台跑著 Ollama 的機器。
 
 ```sh
-npm install   # 無任何外部依賴，此步驟只是建立 lockfile
+npm install            # 無任何外部依賴
 cp .env.example .env   # 填入你的 Ollama 位置
-npm start
+npm start              # server.js：靜態檔案 + 轉接 api/ handlers
 ```
 
 開啟 http://localhost:3000 即可遊玩。
 
-### 環境變數
+## 部署到 Vercel
 
-可放在專案根目錄的 `.env`（不進版控），或直接由環境帶入（環境變數優先於 `.env`）。部署平台（如 Vercel）則設定在平台的環境變數介面。
+1. Vercel 上 Import 這個 GitHub repo（零 build 設定，`vercel.json` 已含 `maxDuration: 60`）
+2. 在專案的 **Environment Variables** 設定：
+
+| 變數 | 必填 | 說明 |
+|---|---|---|
+| `OLLAMA_URL` | ✅ | 公開可達的 Ollama chat 端點（例如 Cloudflare tunnel） |
+| `OLLAMA_MODEL` | | 預設 `qwen3:8b` |
+| `SESSION_SECRET` | ✅ | token 加密密鑰（任意長隨機字串）。未設定時每個實例各自隨機生成，多實例下進行中的測驗會失效 |
+| `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | 建議 | Cloudflare Access Service Token；設定後所有對 Ollama 的請求會帶上對應 header |
+| `QUESTION_COUNT` | | 每場題數，預設 12 |
+
+注意：出題含重試最壞情況可能超過 60 秒（Hobby 方案函式上限），此時前端會自動重試該題。
+
+### 其他環境變數
 
 | 變數 | 預設值 | 說明 |
 |---|---|---|
-| `OLLAMA_URL` | `http://localhost:11434/api/chat` | Ollama chat 端點 |
-| `OLLAMA_MODEL` | `qwen3:8b` | Ollama 模型名稱 |
-| `QUESTION_COUNT` | `12` | 每場測驗題數 |
-| `LLM_TIMEOUT_MS` | `300000` | 單次 LLM 請求逾時（毫秒） |
-| `PORT` | `3000` | 網站埠號 |
+| `LLM_TIMEOUT_MS` | `300000` | 單次 LLM 請求逾時（毫秒，本機用；Vercel 受 maxDuration 限制） |
+| `PORT` | `3000` | 本機開發埠號 |
 
 ## API
 
 | 端點 | 方法 | 說明 |
 |---|---|---|
-| `/api/session` | POST | 建立場次，回傳 `{id, total}` |
-| `/api/session/:id/question` | POST | 生成下一題，回傳 `{index, total, question, options: [{id, text}]}`；生成中重複呼叫回 409 |
-| `/api/session/:id/result` | POST | 傳入 `{choices: ["A", ...]}`（依題序），回傳 `{alignment, lawScore, goodScore, analysis, roleplayTips}` |
+| `/api/question` | POST | 傳入 `{prev: [先前題目的 token]}`，回傳 `{index, total, question, options: [{id, text}], token}` |
+| `/api/progress` | POST | 傳入 `{answers: [{token, choice}]}`（已答部分），回傳 `{answered, total, confidence, level}` |
+| `/api/result` | POST | 傳入 `{answers: [{token, choice}]}`（全部），回傳 `{alignment, lawScore, goodScore, confidence, level, analysis, roleplayTips}` |
 
-`alignment` 為九大陣營代碼：`LG`/`NG`/`CG`/`LN`/`TN`/`CN`/`LE`/`NE`/`CE`（True Neutral 用 `TN`）。場次保存於記憶體、60 分鐘過期，結算後即刪除。
+`alignment` 為九大陣營代碼：`LG`/`NG`/`CG`/`LN`/`TN`/`CN`/`LE`/`NE`/`CE`（True Neutral 用 `TN`）。
+
+## 專案結構
+
+```
+api/        serverless functions（Vercel 直接載入）
+lib/        共用邏輯：config / quiz（prompt、生成、計分）/ token（加密）/ answers / http
+public/     靜態前端
+server.js   本機開發伺服器（靜態檔案 + 轉接 api/）
+designs/    logo 與 favicon 原始檔
+```

@@ -1,9 +1,9 @@
-// 陣營羅盤前端：逐題向後端取題（背景預取下一題），作答完成後由後端統計陣營
+// 陣營羅盤前端：逐題向後端取題（背景預取下一題），作答完成後由後端統計陣營。
+// 無狀態設計：每題附帶加密 token（含隱藏的陣營標注），由前端持有、原樣帶回。
 
 const state = {
-  sessionId: null,
   total: 0,
-  questions: [],   // [{index, question, options:[{id,text}]}]
+  questions: [],   // [{index, total, question, options:[{id,text}], token}]
   answers: [],     // 已選選項 id，index 對應題號
   current: 0,
   result: null,
@@ -34,7 +34,7 @@ async function api(path, body) {
   const res = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
+    body: JSON.stringify(body || {}),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `伺服器錯誤（${res.status}）`);
@@ -43,9 +43,12 @@ async function api(path, body) {
 
 function fetchNextQuestion() {
   if (!inflight) {
-    inflight = api(`/api/session/${state.sessionId}/question`)
+    inflight = api("/api/question", {
+      prev: state.questions.map((q) => q.token),
+    })
       .then((q) => {
         state.questions.push(q);
+        state.total = q.total;
         inflight = null;
         return q;
       })
@@ -70,19 +73,29 @@ function prefetch() {
   }
 }
 
+// 已作答的題目 → [{token, choice}]
+function answeredPayload() {
+  const answers = [];
+  state.questions.forEach((q, i) => {
+    if (state.answers[i] != null) {
+      answers.push({ token: q.token, choice: state.answers[i] });
+    }
+  });
+  return answers;
+}
+
 // ─── 流程 ─────────────────────────────────────────────────
 
 async function startQuiz() {
   showLoading("正在擲骰生成第一題……", "AI 每次都會即時編寫全新的冒險情境");
+  state.questions = [];
+  state.answers = [];
+  state.current = 0;
+  state.result = null;
+  $("confidence-line").hidden = true;
   try {
-    const session = await api("/api/session");
-    state.sessionId = session.id;
-    state.total = session.total;
-    state.questions = [];
-    state.answers = new Array(session.total).fill(null);
-    state.current = 0;
-    $("confidence-line").hidden = true;
     await ensureQuestion(0);
+    state.answers = new Array(state.total).fill(null);
     renderQuestion();
     show("quiz");
     prefetch();
@@ -112,7 +125,7 @@ function renderQuestion() {
 
 // 每答一題就向後端要即時信心指數（純統計、即時回應；只有信心值，不含方向）
 function updateConfidence() {
-  api(`/api/session/${state.sessionId}/progress`, { choices: state.answers })
+  api("/api/progress", { answers: answeredPayload() })
     .then(({ confidence, level, answered }) => {
       if (answered === 0) return;
       const el = $("confidence-line");
@@ -160,9 +173,7 @@ function goBack() {
 async function submitAnswers() {
   showLoading("正在推演你的靈魂座標……", "統計作答並請 DM 撰寫觀察報告");
   try {
-    const result = await api(`/api/session/${state.sessionId}/result`, {
-      choices: state.answers,
-    });
+    const result = await api("/api/result", { answers: answeredPayload() });
     if (!ALIGNMENTS[result.alignment]) {
       throw new Error("回傳的陣營代碼不正確");
     }
