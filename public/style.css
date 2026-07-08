@@ -100,6 +100,49 @@ h1 {
 
 .hint { font-size: 0.8rem; color: var(--ink-dim); margin-top: 14px; }
 
+/* 開始畫面的星芒微光 */
+#screen-start { position: relative; }
+
+.sparks span {
+  position: absolute;
+  color: var(--gold);
+  opacity: 0;
+  animation: twinkle 5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.sparks span:nth-child(1) { top: 6%;  left: 12%; font-size: 0.7rem; animation-delay: 0s; }
+.sparks span:nth-child(2) { top: 14%; right: 10%; font-size: 1rem;   animation-delay: 1.2s; }
+.sparks span:nth-child(3) { top: 30%; left: 4%;  font-size: 0.8rem; animation-delay: 2.4s; }
+.sparks span:nth-child(4) { top: 40%; right: 5%; font-size: 0.6rem; animation-delay: 3.1s; }
+.sparks span:nth-child(5) { top: 3%;  right: 34%; font-size: 0.6rem; animation-delay: 4.2s; }
+.sparks span:nth-child(6) { top: 26%; left: 20%; font-size: 0.55rem; animation-delay: 1.8s; }
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.6); }
+  50% { opacity: 0.65; transform: scale(1); }
+}
+
+/* 載入畫面的風味語錄 */
+.loading-flavor {
+  margin-top: 30px;
+  min-height: 1.6em;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--ink-dim);
+  transition: opacity 0.4s ease;
+}
+
+/* 裝飾分隔線 */
+.flourish {
+  text-align: center;
+  color: rgba(201, 162, 75, 0.4);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  margin: 4px 0 28px;
+  user-select: none;
+}
+
 /* ─── 按鈕 ─── */
 
 .btn-primary {
@@ -200,6 +243,7 @@ h1 {
 #options { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
 
 .option {
+  position: relative;
   font-family: var(--serif);
   font-size: 1rem;
   text-align: left;
@@ -207,16 +251,35 @@ h1 {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 14px 18px;
+  padding: 14px 18px 14px 26px;
   cursor: pointer;
   line-height: 1.6;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+
+/* hover 時浮現的星芒標記，像被 DM 點名 */
+.option::before {
+  content: "✦";
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  margin-top: -0.75em;
+  font-size: 0.7rem;
+  color: var(--gold-bright);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .option:hover {
   border-color: var(--gold);
   background: #261e15;
   transform: translateX(3px);
+}
+
+.option:hover::before {
+  opacity: 1;
+  transform: none;
 }
 
 /* ─── 結果 ─── */
@@ -313,12 +376,37 @@ h1 {
 }
 
 .result-block {
+  position: relative;
   text-align: left;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 20px 24px;
   margin-bottom: 16px;
+}
+
+/* RPG 對話框式的金色角落飾框 */
+.result-block::before,
+.result-block::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: rgba(201, 162, 75, 0.45);
+  border-style: solid;
+  pointer-events: none;
+}
+
+.result-block::before {
+  top: 5px;
+  left: 5px;
+  border-width: 1px 0 0 1px;
+}
+
+.result-block::after {
+  bottom: 5px;
+  right: 5px;
+  border-width: 0 1px 1px 0;
 }
 
 .result-block h3 {

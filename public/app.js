@@ -22,13 +22,54 @@ function show(name) {
   for (const s of screens) {
     $(`screen-${s}`).classList.toggle("active", s === name);
   }
+  if (name !== "loading") stopFlavor();
   window.scrollTo({ top: 0 });
+}
+
+// 載入畫面輪播的 D&D 風味語錄
+const FLAVORS = [
+  "骰子永遠不會說謊，但 DM 會微笑。",
+  "守序不代表無趣，混亂不代表瘋狂——通常啦。",
+  "地城裡最危險的不是龍，是隊友的「我有個計畫」。",
+  "吟遊詩人正在為你的傳說調音……",
+  "聖騎士檢查了你的動機，皺了皺眉。",
+  "盜賊翻了翻你的口袋，放回了一枚銅幣。表示尊重。",
+  "德魯伊說：答案早已寫在風裡。風表示：沒有。",
+  "巫妖也曾是個有夢想的法師。",
+  "酒館老闆聽完你的選擇，默默多倒了一杯。",
+  "命運的織布機吱呀作響……",
+  "一名地精正在偷看你的答案卷。噓。",
+  "龍在數牠的金幣，順便數你的良心。",
+];
+
+let flavorTimer = null;
+
+function startFlavor() {
+  const el = $("loading-flavor");
+  let idx = Math.floor(Math.random() * FLAVORS.length);
+  el.textContent = `「${FLAVORS[idx]}」`;
+  el.style.opacity = 1;
+  clearInterval(flavorTimer);
+  flavorTimer = setInterval(() => {
+    el.style.opacity = 0;
+    setTimeout(() => {
+      idx = (idx + 1) % FLAVORS.length;
+      el.textContent = `「${FLAVORS[idx]}」`;
+      el.style.opacity = 1;
+    }, 400);
+  }, 5000);
+}
+
+function stopFlavor() {
+  clearInterval(flavorTimer);
+  flavorTimer = null;
 }
 
 function showLoading(text, hint) {
   $("loading-text").textContent = text;
   $("loading-hint").textContent = hint || "";
   show("loading");
+  startFlavor();
   // display:none → block 切換後，瀏覽器偶爾不會重啟 CSS 動畫：
   // 強制 reflow 重新觸發，確保 d20 一定在轉
   const dice = document.querySelector("#screen-loading .dice");
@@ -152,8 +193,8 @@ function renderQuestion() {
 
   const inExtend = state.extendBase > 0 && state.current >= state.extendBase;
   $("quiz-counter").textContent = inExtend
-    ? `加測 ${state.current - state.extendBase + 1} / ${state.total - state.extendBase}`
-    : `${state.current + 1} / ${state.total}`;
+    ? `加測試煉 ${state.current - state.extendBase + 1} ／ ${state.total - state.extendBase}`
+    : `試煉 ${state.current + 1} ／ ${state.total}`;
   $("progress-bar").style.width = `${(state.current / state.total) * 100}%`;
   $("question-text").textContent = q.question;
   $("btn-back").hidden = state.current === 0;

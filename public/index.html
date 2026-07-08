@@ -14,6 +14,9 @@
 
     <!-- 開始畫面 -->
     <section id="screen-start" class="screen active">
+      <div class="sparks" aria-hidden="true">
+        <span>✦</span><span>✦</span><span>✦</span><span>✦</span><span>✦</span><span>✦</span>
+      </div>
       <img src="logo.jpg" alt="陣營羅盤 Alignment Compass" class="logo" />
       <h1 class="sr-only">陣營羅盤 Alignment Compass</h1>
       <p class="intro">
@@ -45,6 +48,7 @@
       </div>
       <p id="loading-text">正在擲骰生成題目……</p>
       <p class="hint" id="loading-hint"></p>
+      <p id="loading-flavor" class="loading-flavor" aria-hidden="true"></p>
     </section>
 
     <!-- 答題畫面 -->
@@ -88,6 +92,8 @@
         <p class="axis-desc" id="result-confidence"></p>
         <p class="axis-desc" id="result-secondary"></p>
       </div>
+
+      <div class="flourish" aria-hidden="true">──────&nbsp;&nbsp;✦&nbsp;&nbsp;──────</div>
 
       <div class="result-block extend-block" id="block-extend" hidden>
         <h3>想讓結果更穩？</h3>
