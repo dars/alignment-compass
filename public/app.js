@@ -227,6 +227,44 @@ function answeredPayload() {
   return answers;
 }
 
+// ─── 開場等待題目池（DM 整理桌面）─────────────────────────
+
+const POOL_POLL_MS = 3000;
+const POOL_WAIT_MAX_MS = 60_000;
+
+// 池子緩衝不足時先等 DM 備題：輪詢本身會觸發後端補池，達標或超時即放行。
+// ready 只是軟訊號，放行後若仍抽不到池題，逐題現場生成是最後防線。
+async function waitForPool() {
+  const startedAt = Date.now();
+  let waiting = false;
+  while (Date.now() - startedAt < POOL_WAIT_MAX_MS) {
+    let st;
+    try {
+      const res = await fetch("/api/pool-status");
+      if (!res.ok) break; // 端點異常不擋玩家，直接走原流程
+      st = await res.json();
+    } catch {
+      break;
+    }
+    if (st.ready) break;
+    if (!waiting) {
+      waiting = true;
+      $("loading-text").textContent = "DM 正在整理桌面……";
+      fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "pool_wait" }),
+      }).catch(() => {});
+    }
+    $("loading-hint").textContent = `情境卡已備妥 ${st.pool} / ${st.need} 張`;
+    await new Promise((r) => setTimeout(r, POOL_POLL_MS));
+  }
+  if (waiting) {
+    $("loading-text").textContent = "正在擲骰準備題目……";
+    $("loading-hint").textContent = "DM 已就座，為你翻開第一張情境卡";
+  }
+}
+
 // ─── 流程 ─────────────────────────────────────────────────
 
 async function startQuiz() {
@@ -243,6 +281,7 @@ async function startQuiz() {
   $("confidence-line").hidden = true;
   setNarrativeStatus("idle"); // 停掉可能還在跳動的等待計時器
   try {
+    await waitForPool();
     await ensureQuestion(0);
     state.answers = new Array(state.total).fill(null);
     renderQuestion();

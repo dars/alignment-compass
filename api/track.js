@@ -2,7 +2,7 @@ import { track } from "../lib/stats.js";
 import { readJson, sendJson, handleError, HttpError } from "../lib/http.js";
 
 // 前端事件回報（僅收伺服器看不到的事件）；白名單制，不收任何自由文字
-const ALLOWED_EVENTS = new Set(["copy_result", "share_card"]);
+const ALLOWED_EVENTS = new Set(["copy_result", "share_card", "pool_wait"]);
 
 export default async function handler(req, res) {
   try {

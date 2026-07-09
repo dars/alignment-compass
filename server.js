@@ -10,6 +10,7 @@ import progressHandler from "./api/progress.js";
 import resultHandler from "./api/result.js";
 import narrativeHandler from "./api/narrative.js";
 import refillHandler from "./api/refill.js";
+import poolStatusHandler from "./api/pool-status.js";
 import trackHandler from "./api/track.js";
 import statsHandler from "./api/stats.js";
 import { OLLAMA_URL, OLLAMA_MODEL, QUESTION_COUNT } from "./lib/config.js";
@@ -26,6 +27,7 @@ const ROUTES = {
   "/api/result": resultHandler,
   "/api/narrative": narrativeHandler,
   "/api/refill": refillHandler,
+  "/api/pool-status": poolStatusHandler,
   "/api/track": trackHandler,
   "/api/stats": statsHandler,
 };
