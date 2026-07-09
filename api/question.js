@@ -16,10 +16,14 @@ export default async function handler(req, res) {
     // 上限含信心偏低時的加測額度
     if (prevTokens.length >= MAX_QUESTIONS) throw new HttpError(409, "題目已全部生成");
 
-    // 解開先前題目的 token 取得主題與文字，供去重使用
+    // 解開先前題目的 token 取得主題、文字與選項陣營，供去重與陣營覆蓋平衡使用
     const prev = prevTokens.map((t) => {
       const p = unseal(t);
-      return { theme: p.t, question: p.q };
+      return {
+        theme: p.t,
+        question: p.q,
+        alignments: (p.o || []).map((o) => o.alignment),
+      };
     });
 
     const index = prev.length;
